@@ -104,6 +104,7 @@ public final class Environment implements com.hotels.styx.api.Environment {
     }
 
     // TODO is there a better way to do it than this?
+    // TODO yes, we need to be able to construct a builder from an existing Environment object, which will require a little refactoring
     public Environment withMetricsWhitelist(MetricWhitelist metricsWhitelist) {
         return new Environment(this, metricsWhitelist);
     }
