@@ -1,3 +1,18 @@
+/*
+  Copyright (C) 2013-2019 Expedia Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+ */
 package com.hotels.styx.api.metrics;
 
 import com.codahale.metrics.Counter;
@@ -10,13 +25,10 @@ import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.Timer;
 import com.hotels.styx.api.MetricRegistry;
 
-import java.util.List;
 import java.util.SortedMap;
 import java.util.SortedSet;
-import java.util.regex.Pattern;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 
 /**
  * A metric registry that only allows metrics to be registered if they are on a whitelist.
@@ -25,26 +37,15 @@ import static java.util.stream.Collectors.toList;
  */
 public class WhitelistMetricRegistry implements MetricRegistry {
     private final MetricRegistry delegate;
-    private final List<Pattern> whitelist;
+    private final MetricWhitelist whitelist;
 
-    public WhitelistMetricRegistry(MetricRegistry delegate, List<String> whitelist) {
-        this(whitelist.stream().map(Pattern::compile).collect(toList()), delegate);
-    }
-
-    private WhitelistMetricRegistry(List<Pattern> whitelist, MetricRegistry delegate) {
+    public WhitelistMetricRegistry(MetricRegistry delegate, MetricWhitelist whitelist) {
         this.delegate = requireNonNull(delegate);
         this.whitelist = requireNonNull(whitelist);
     }
 
-    private boolean isPermittedMetric(String name) {
-        // TODO find optimal implementation
-
-        return whitelist.stream().anyMatch(pattern ->
-                pattern.matcher(name).matches());
-    }
-
     private void rejectMetricIfNotWhitelisted(String name) {
-        if (!isPermittedMetric(name)) {
+        if (!whitelist.isPermittedMetric(name)) {
             throw new IllegalArgumentException("Metric '" + name + "' is not registered in the whitelist");
         }
     }

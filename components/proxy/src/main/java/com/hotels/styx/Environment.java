@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2018 Expedia Inc.
+  Copyright (C) 2013-2019 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -17,10 +17,12 @@ package com.hotels.styx;
 
 import com.google.common.eventbus.EventBus;
 import com.hotels.styx.api.MetricRegistry;
-import com.hotels.styx.proxy.HttpErrorStatusCauseLogger;
-import com.hotels.styx.proxy.HttpErrorStatusMetrics;
+import com.hotels.styx.api.metrics.MetricWhitelist;
+import com.hotels.styx.api.metrics.WhitelistMetricRegistry;
 import com.hotels.styx.api.metrics.codahale.CodaHaleMetricRegistry;
 import com.hotels.styx.configstore.ConfigStore;
+import com.hotels.styx.proxy.HttpErrorStatusCauseLogger;
+import com.hotels.styx.proxy.HttpErrorStatusMetrics;
 import com.hotels.styx.server.HttpErrorStatusListener;
 import com.hotels.styx.server.ServerEnvironment;
 
@@ -47,6 +49,18 @@ public final class Environment implements com.hotels.styx.api.Environment {
         this.version = firstNonNull(builder.version, Version::newVersion);
         this.serverEnvironment = new ServerEnvironment(firstNonNull(builder.metricRegistry, CodaHaleMetricRegistry::new));
 
+        this.httpErrorStatusListener = HttpErrorStatusListener.compose(new HttpErrorStatusCauseLogger(), new HttpErrorStatusMetrics(serverEnvironment.metricRegistry()));
+    }
+
+    private Environment(Environment parent, MetricWhitelist metricWhitelist) {
+        this.version = parent.version;
+        this.eventBus = parent.eventBus;
+        this.aggregatedConfiguration = parent.aggregatedConfiguration;
+        this.configStore = parent.configStore;
+
+        MetricRegistry registry = new WhitelistMetricRegistry(parent.serverEnvironment.metricRegistry(), metricWhitelist);
+
+        this.serverEnvironment = new ServerEnvironment(registry);
         this.httpErrorStatusListener = HttpErrorStatusListener.compose(new HttpErrorStatusCauseLogger(), new HttpErrorStatusMetrics(serverEnvironment.metricRegistry()));
     }
 
@@ -89,6 +103,10 @@ public final class Environment implements com.hotels.styx.api.Environment {
         return serverEnvironment;
     }
 
+    // TODO is there a better way to do it than this?
+    public Environment withMetricsWhitelist(MetricWhitelist metricsWhitelist) {
+        return new Environment(this, metricsWhitelist);
+    }
 
     /**
      * Builder for {@link com.hotels.styx.Environment}.
