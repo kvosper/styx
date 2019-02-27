@@ -29,6 +29,7 @@ import com.hotels.styx.infrastructure.configuration.ConfigurationParser;
 import com.hotels.styx.infrastructure.configuration.yaml.YamlConfiguration;
 import com.hotels.styx.server.HttpServer;
 import com.hotels.styx.startup.ProxyServerSetUp;
+import com.hotels.styx.startup.ServerService;
 import com.hotels.styx.startup.StyxPipelineFactory;
 import com.hotels.styx.startup.StyxServerComponents;
 import io.netty.util.ResourceLeakDetector;
@@ -40,6 +41,7 @@ import java.io.Reader;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.hotels.styx.ServerConfigSchema.validateServerConfiguration;
 import static com.hotels.styx.infrastructure.configuration.ConfigurationSource.configSource;
@@ -131,11 +133,14 @@ public final class StyxServer extends AbstractService {
         return "n".equals(validate) || "no".equals(validate);
     }
 
-    private final HttpServer proxyServer;
     private final HttpServer adminServer;
 
     private final ServiceManager serviceManager;
     private final Stopwatch stopwatch;
+
+    private final AtomicReference<HttpServer> proxyServer = new AtomicReference<>();
+//    private  AtomicReference<HttpServer> adminServer = new AtomicReference<>();
+
 
     public StyxServer(StyxServerComponents config) {
         this(config, null);
@@ -148,16 +153,25 @@ public final class StyxServer extends AbstractService {
 
         Map<String, StyxService> servicesFromConfig = components.services();
 
-        ProxyServerSetUp proxyServerSetUp = new ProxyServerSetUp(new StyxPipelineFactory());
-
         components.plugins().forEach(plugin -> components.environment().configStore().set("plugins." + plugin.name(), plugin));
 
-        this.proxyServer = proxyServerSetUp.createProxyServer(components);
         this.adminServer = createAdminServer(components);
+
+        ServerService adminServerService = new ServerService(() -> createAdminServer(components));
+
+        ServerService proxyServerService = new ServerService(() -> {
+            ProxyServerSetUp proxyServerSetUp = new ProxyServerSetUp(new StyxPipelineFactory());
+
+            HttpServer poxyServer = proxyServerSetUp.createProxyServer(components);
+
+            this.proxyServer.set(poxyServer);
+
+            return poxyServer;
+        });
 
         this.serviceManager = new ServiceManager(new ArrayList<Service>() {
             {
-                add(proxyServer);
+                add(proxyServerService);
                 add(adminServer);
                 servicesFromConfig.values().stream()
                         .map(StyxServer::toGuavaService)
@@ -167,11 +181,11 @@ public final class StyxServer extends AbstractService {
     }
 
     public InetSocketAddress proxyHttpAddress() {
-        return proxyServer.httpAddress();
+        return proxyServer.get().httpAddress();
     }
 
     public InetSocketAddress proxyHttpsAddress() {
-        return proxyServer.httpsAddress();
+        return proxyServer.get().httpsAddress();
     }
 
     public InetSocketAddress adminHttpAddress() {
@@ -247,6 +261,12 @@ public final class StyxServer extends AbstractService {
                         });
             }
         };
+    }
+
+    private static HttpServer createProxyServer(StyxServerComponents components) {
+        ProxyServerSetUp proxyServerSetUp = new ProxyServerSetUp(new StyxPipelineFactory());
+
+        return proxyServerSetUp.createProxyServer(components);
     }
 
     private static HttpServer createAdminServer(StyxServerComponents config) {
