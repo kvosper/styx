@@ -133,13 +133,11 @@ public final class StyxServer extends AbstractService {
         return "n".equals(validate) || "no".equals(validate);
     }
 
-    private final HttpServer adminServer;
-
     private final ServiceManager serviceManager;
     private final Stopwatch stopwatch;
 
     private final AtomicReference<HttpServer> proxyServer = new AtomicReference<>();
-//    private  AtomicReference<HttpServer> adminServer = new AtomicReference<>();
+    private final AtomicReference<HttpServer> adminServer = new AtomicReference<>();
 
 
     public StyxServer(StyxServerComponents config) {
@@ -155,24 +153,28 @@ public final class StyxServer extends AbstractService {
 
         components.plugins().forEach(plugin -> components.environment().configStore().set("plugins." + plugin.name(), plugin));
 
-        this.adminServer = createAdminServer(components);
+        ServerService adminServerService = new ServerService(() -> {
+            HttpServer adminServer = createAdminServer(components);
 
-        ServerService adminServerService = new ServerService(() -> createAdminServer(components));
+            this.adminServer.set(adminServer);
+
+            return adminServer;
+        });
 
         ServerService proxyServerService = new ServerService(() -> {
             ProxyServerSetUp proxyServerSetUp = new ProxyServerSetUp(new StyxPipelineFactory());
 
-            HttpServer poxyServer = proxyServerSetUp.createProxyServer(components);
+            HttpServer proxyServer = proxyServerSetUp.createProxyServer(components);
 
-            this.proxyServer.set(poxyServer);
+            this.proxyServer.set(proxyServer);
 
-            return poxyServer;
+            return proxyServer;
         });
 
         this.serviceManager = new ServiceManager(new ArrayList<Service>() {
             {
                 add(proxyServerService);
-                add(adminServer);
+                add(adminServerService);
                 servicesFromConfig.values().stream()
                         .map(StyxServer::toGuavaService)
                         .forEach(this::add);
@@ -189,11 +191,11 @@ public final class StyxServer extends AbstractService {
     }
 
     public InetSocketAddress adminHttpAddress() {
-        return adminServer.httpAddress();
+        return adminServer.get().httpAddress();
     }
 
     public InetSocketAddress adminHttpsAddress() {
-        return adminServer.httpsAddress();
+        return adminServer.get().httpsAddress();
     }
 
     private static StartupConfig parseStartupConfig(String[] args) {
