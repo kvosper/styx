@@ -40,6 +40,8 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.handler.codec.http.HttpContentCompressor;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.ssl.SslContext;
@@ -154,6 +156,9 @@ class ProxyConnectorFactory implements ServerConnectorFactory {
 
                     // Http Server Codec
                     .addLast("http-server-codec", new HttpServerCodec(serverConfig.maxInitialLineLength(), serverConfig.maxHeaderSize(), serverConfig.maxChunkSize(), true))
+
+                    .addLast("compress", new HttpContentCompressor())
+                    .addLast("decompress", new HttpContentDecompressor())
 
                     // idle-handler and timeout-handler must be before aggregator. Otherwise
                     // timeout handler cannot see the incoming HTTP chunks.
