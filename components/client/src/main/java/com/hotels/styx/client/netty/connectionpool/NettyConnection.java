@@ -25,6 +25,7 @@ import com.hotels.styx.client.HttpRequestOperationFactory;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpClientCodec;
+import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
@@ -84,8 +85,9 @@ public class NettyConnection implements Connection, TimeToFirstByteListener {
             pipeline.addLast("ssl", sslHandler);
         }
 
-        pipeline.addLast("http-codec", new HttpClientCodec(httpConfig.maxInitialLineLength(), httpConfig.maxHeadersSize(), httpConfig.maxChunkSize()));
-        
+        pipeline.addLast("http-codec", new HttpClientCodec(httpConfig.maxInitialLineLength(), httpConfig.maxHeadersSize(), httpConfig.maxChunkSize()))
+                .addLast("compress", new HttpContentCompressor())
+                .addLast("decompress", new HttpContentDecompressor());
         if (httpConfig.compress()) {
             pipeline.addLast("decompressor", new HttpContentDecompressor());
         }

@@ -90,7 +90,7 @@ class ServerCompressionSpec : StringSpec() {
 
         write(originsFile, content.toByteArray())
 
-        "Does a thing" {
+        "Compresses responses" {
             val request = get("/")
                     .header(HOST, "${styxServer.proxyHttpAddress().hostName}:${styxServer.proxyHttpAddress().port}")
                     .header("Accept-Encoding", "gzip,deflate")
@@ -102,19 +102,7 @@ class ServerCompressionSpec : StringSpec() {
 
             response?.status() shouldBe (OK)
             response?.header("Content-Encoding") shouldBe Optional.of("gzip")
-            // TODO how to check compressed content?
-//            response?.bodyAs(UTF_8) shouldBe ("Content")
         }
-    }
-
-    private fun compress(string: String): Any {
-        val baos = ByteArrayOutputStream()
-        val gzos = GZIPOutputStream(baos)
-        gzos.bufferedWriter().write(string)
-
-        val compressed = String(baos.toByteArray(), UTF_8)
-
-        return compressed
     }
 
     val client: StyxHttpClient = StyxHttpClient.Builder()
