@@ -21,6 +21,8 @@ import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.configureFor
 import com.github.tomakehurst.wiremock.client.WireMock.stubFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
+import com.github.tomakehurst.wiremock.common.Gzip
+import com.github.tomakehurst.wiremock.common.Gzip.gzip
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
 import com.hotels.styx.StyxConfig
 import com.hotels.styx.StyxServer
@@ -33,13 +35,17 @@ import io.kotlintest.Spec
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
 import reactor.core.publisher.toMono
+import java.io.BufferedWriter
+import java.io.ByteArrayOutputStream
+import java.io.OutputStreamWriter
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
 import java.nio.file.Files.createTempFile
 import java.nio.file.Files.write
-import java.util.*
 import java.util.concurrent.TimeUnit.MILLISECONDS
+import java.util.zip.GZIPOutputStream
 
-class ServerCompressionSpec : StringSpec() {
+class ClientDecompressionSpec : StringSpec() {
     val origin1 = WireMockServer(wireMockConfig().dynamicPort())
 
     val originsFile = createTempFile("origins-", ".yml")
@@ -62,8 +68,12 @@ class ServerCompressionSpec : StringSpec() {
 
         configureFor(origin1.port())
         stubFor(WireMock.get(urlPathEqualTo("/")).willReturn(aResponse()
-                .withBody("Content")
+                .withHeader("Content-Encoding", "gzip")
+                .withBody(gzip("MyGzippedContent"))
+
                 .withStatus(OK.code())))
+
+
 
         val content = """
             ---
@@ -84,18 +94,19 @@ class ServerCompressionSpec : StringSpec() {
 
         write(originsFile, content.toByteArray())
 
-        "Compresses responses" {
+        "Decompresses responses" {
             val request = get("/")
                     .header(HOST, "${styxServer.proxyHttpAddress().hostName}:${styxServer.proxyHttpAddress().port}")
-                    .header("Accept-Encoding", "gzip,deflate")
-                    .build();
+                    .build()
 
             val response = client.send(request)
                     .toMono()
-                    .block();
+                    .block()
+
+//            println("FooBar became: "+gzip("FooBar"))
 
             response?.status() shouldBe (OK)
-            response?.header("Content-Encoding") shouldBe Optional.of("gzip")
+            response?.body() shouldBe ("sadaskjdhkj")
         }
     }
 
