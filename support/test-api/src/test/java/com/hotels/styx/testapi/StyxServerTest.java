@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2018 Expedia Inc.
+  Copyright (C) 2013-2019 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.anyUrl;
 import static com.github.tomakehurst.wiremock.client.WireMock.configureFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
@@ -84,18 +85,18 @@ public class StyxServerTest {
         secureOriginServer.start();
 
         configureFor(originServer1.port());
-        stubFor(WireMock.get(urlPathEqualTo("/")).willReturn(aResponse()
+        stubFor(WireMock.get(anyUrl()).willReturn(aResponse()
                 .withHeader("origin", "first")
                 .withStatus(OK.code())));
 
         configureFor(originServer2.port());
-        stubFor(WireMock.get(urlPathEqualTo("/")).willReturn(aResponse()
+        stubFor(WireMock.get(anyUrl()).willReturn(aResponse()
                 .withHeader("origin", "second")
                 .withStatus(OK.code())));
 
         // HTTP port is still used to identify the WireMockServer, even when we are using it for HTTPS
         configureFor(secureOriginServer.port());
-        stubFor(WireMock.get(urlPathEqualTo("/")).willReturn(aResponse()
+        stubFor(WireMock.get(anyUrl()).willReturn(aResponse()
                 .withHeader("origin", "secure")
                 .withStatus(OK.code())));
     }

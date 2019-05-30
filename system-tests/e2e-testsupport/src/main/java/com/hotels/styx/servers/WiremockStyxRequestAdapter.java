@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2018 Expedia Inc.
+  Copyright (C) 2013-2019 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -16,16 +16,22 @@
 package com.hotels.styx.servers;
 
 import com.github.tomakehurst.wiremock.http.ContentTypeHeader;
+import com.github.tomakehurst.wiremock.http.Cookie;
 import com.github.tomakehurst.wiremock.http.HttpHeader;
 import com.github.tomakehurst.wiremock.http.HttpHeaders;
 import com.github.tomakehurst.wiremock.http.QueryParameter;
 import com.github.tomakehurst.wiremock.http.Request;
 import com.github.tomakehurst.wiremock.http.RequestMethod;
+import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.hotels.styx.api.HttpRequest;
 
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static com.github.tomakehurst.wiremock.http.HttpHeader.httpHeader;
@@ -59,6 +65,26 @@ public class WiremockStyxRequestAdapter implements Request {
     @Override
     public RequestMethod getMethod() {
         return RequestMethod.fromString(styxRequest.method().name());
+    }
+
+    @Override
+    public String getScheme() {
+        return null;
+    }
+
+    @Override
+    public String getHost() {
+        return null;
+    }
+
+    @Override
+    public int getPort() {
+        return 0;
+    }
+
+    @Override
+    public String getClientIp() {
+        return null;
     }
 
     @Override
@@ -99,6 +125,11 @@ public class WiremockStyxRequestAdapter implements Request {
     }
 
     @Override
+    public Map<String, Cookie> getCookies() {
+        return null;
+    }
+
+    @Override
     public QueryParameter queryParameter(String key) {
         return styxRequest.queryParam(key)
                 .map(value -> new QueryParameter(key, ImmutableList.of(value)))
@@ -116,7 +147,32 @@ public class WiremockStyxRequestAdapter implements Request {
     }
 
     @Override
+    public String getBodyAsBase64() {
+        return Base64.getEncoder().encodeToString(styxRequest.body());
+    }
+
+    @Override
+    public boolean isMultipart() {
+        return false;
+    }
+
+    @Override
+    public Collection<Part> getParts() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Part getPart(String name) {
+        return null;
+    }
+
+    @Override
     public boolean isBrowserProxyRequest() {
         return false;
+    }
+
+    @Override
+    public Optional<Request> getOriginalRequest() {
+        return Optional.absent();
     }
 }

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2018 Expedia Inc.
+  Copyright (C) 2013-2019 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -18,8 +18,9 @@ package com.hotels.styx.proxy
 import java.io.{ByteArrayInputStream, IOException, InputStream}
 import java.net.{HttpURLConnection, URL}
 
-import com.github.tomakehurst.wiremock.client.{RequestPatternBuilder, UrlMatchingStrategy, ValueMatchingStrategy}
+import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.http.RequestMethod
+import com.github.tomakehurst.wiremock.matching.{EqualToPattern, RequestPatternBuilder}
 import com.google.common.base.Charsets._
 import com.google.common.base.Strings._
 import com.google.common.base.{Joiner, Optional}
@@ -75,15 +76,11 @@ class ChunkedRequestSpec extends FunSpec
   }
 
   def urlMatchingStrategy(path: String) = {
-    val pathMatch = new UrlMatchingStrategy()
-    pathMatch.setUrlPath("/chunked/1")
-    pathMatch
+    urlPathEqualTo(path)
   }
 
   def valueMatchingStrategy(matches: String) = {
-    val matchingStrategy = new ValueMatchingStrategy()
-    matchingStrategy.setMatches("abc")
-    matchingStrategy
+    new EqualToPattern(matches)
   }
 
   @throws(classOf[IOException])

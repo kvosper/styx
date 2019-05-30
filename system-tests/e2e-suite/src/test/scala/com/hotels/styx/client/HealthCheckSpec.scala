@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2018 Expedia Inc.
+  Copyright (C) 2013-2019 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -21,11 +21,12 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
+import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock._
-import com.github.tomakehurst.wiremock.client.{ValueMatchingStrategy, WireMock}
-import com.hotels.styx.api.HttpRequest.get
+import com.github.tomakehurst.wiremock.matching.EqualToPattern
 import com.hotels.styx.api.HttpHeaderNames.HOST
 import com.hotels.styx.api.HttpRequest
+import com.hotels.styx.api.HttpRequest.get
 import com.hotels.styx.api.HttpResponseStatus._
 import com.hotels.styx.support.ResourcePaths.fixturesHome
 import com.hotels.styx.support.backends.FakeHttpServer
@@ -115,9 +116,7 @@ class HealthCheckSpec extends FunSpec
   private def httpRequest(path: String) = get(styxServer.routerURL(path)).build()
 
   private def valueMatchingStrategy(matches: String) = {
-    val matchingStrategy = new ValueMatchingStrategy()
-    matchingStrategy.setMatches(matches)
-    matchingStrategy
+    new EqualToPattern(matches)
   }
 
   private def originResponse(appId: String) = aResponse

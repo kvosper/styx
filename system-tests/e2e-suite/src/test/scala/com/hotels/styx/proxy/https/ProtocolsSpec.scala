@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2018 Expedia Inc.
+  Copyright (C) 2013-2019 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@ package com.hotels.styx.proxy.https
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.github.tomakehurst.wiremock.client.WireMock._
-import com.github.tomakehurst.wiremock.client.{ValueMatchingStrategy, WireMock}
+import com.github.tomakehurst.wiremock.client.WireMock
+import com.github.tomakehurst.wiremock.matching.EqualToPattern
 import com.hotels.styx.api.HttpHeaderNames.X_FORWARDED_PROTO
 import com.hotels.styx.api.HttpRequest.get
 import com.hotels.styx.api.HttpResponseStatus._
@@ -129,9 +130,7 @@ class ProtocolsSpec extends FunSpec
   def httpsRequest(path: String) = get(styxServer.secureRouterURL(path)).build()
 
   def valueMatchingStrategy(matches: String) = {
-    val matchingStrategy = new ValueMatchingStrategy()
-    matchingStrategy.setMatches(matches)
-    matchingStrategy
+    new EqualToPattern(matches)
   }
 
   describe("Styx routing of HTTP requests") {
