@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2018 Expedia Inc.
+  Copyright (C) 2013-2019 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -15,15 +15,10 @@
  */
 package com.hotels.styx.server;
 
-import com.hotels.styx.api.metrics.codahale.CodaHaleMetricRegistry;
 import com.hotels.styx.api.MetricRegistry;
 
 public final class ServerEnvironment {
     private final MetricRegistry metricRegistry;
-
-    public ServerEnvironment() {
-        this(new CodaHaleMetricRegistry());
-    }
 
     public ServerEnvironment(MetricRegistry metricRegistry) {
         this.metricRegistry = metricRegistry;

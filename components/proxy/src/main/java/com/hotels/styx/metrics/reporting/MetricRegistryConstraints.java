@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2018 Expedia Inc.
+  Copyright (C) 2013-2019 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ import com.codahale.metrics.MetricRegistry;
 import com.hotels.styx.api.Environment;
 import com.hotels.styx.api.metrics.codahale.CodaHaleMetricRegistry;
 
+import static com.hotels.styx.metrics.MetricsSchema.unwrapValidatedMetricRegistry;
+
 /**
  * As the metrics reporters require {@link com.codahale.metrics.MetricRegistry}, this class extracts it from the Styx Metric Registry if possible.
  */
@@ -36,6 +38,8 @@ public final class MetricRegistryConstraints {
      */
     public static MetricRegistry codaHaleMetricRegistry(Environment environment) throws IllegalStateException {
         com.hotels.styx.api.MetricRegistry metricRegistry = environment.metricRegistry();
+
+        metricRegistry = unwrapValidatedMetricRegistry(metricRegistry);
 
         if (!(metricRegistry instanceof CodaHaleMetricRegistry)) {
             throw new IllegalStateException("Metric Registry " + metricRegistry.getClass() + " not supported");

@@ -26,6 +26,7 @@ import com.hotels.styx.server.ServerEnvironment;
 
 import java.util.function.Supplier;
 
+import static com.hotels.styx.metrics.StyxMetricsSchema.STYX_METRICS_SCHEMA;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -45,7 +46,11 @@ public final class Environment implements com.hotels.styx.api.Environment {
 
         this.configuration = requireNonNull(builder.configuration);
         this.version = firstNonNull(builder.version, Version::newVersion);
-        this.serverEnvironment = new ServerEnvironment(firstNonNull(builder.metricRegistry, CodaHaleMetricRegistry::new));
+        // TODO get metric schema
+        // TODO wrap metric registry in schema
+        MetricRegistry reg = firstNonNull(builder.metricRegistry, CodaHaleMetricRegistry::new);
+        STYX_METRICS_SCHEMA.preregister(reg);
+        this.serverEnvironment = new ServerEnvironment(STYX_METRICS_SCHEMA.validated(reg));
 
         this.httpErrorStatusListener = HttpErrorStatusListener.compose(new HttpErrorStatusCauseLogger(), new HttpErrorStatusMetrics(serverEnvironment.metricRegistry()));
     }
