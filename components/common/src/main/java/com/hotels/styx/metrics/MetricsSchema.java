@@ -115,9 +115,9 @@ public class MetricsSchema {
         String errorMessage = null;
 
         if (spec == null) {
-            errorMessage = format("Attempted to access %s %s, but no metric with that name exists", type, name);
+            errorMessage = format("Invalid metric: %s %s, does not exist in schema", type, name);
         } else if (spec.metricType() != type) {
-            errorMessage = format("Attempted to access %s %s, but metric %s is a %s", type, name, name, spec.metricType());
+            errorMessage = format("Invalid metric: %s %s, schema declares %s as a %s", type, name, name, spec.metricType());
         }
 
         if (errorMessage != null) {

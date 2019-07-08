@@ -60,8 +60,8 @@ public class Pair<K, V> {
             return false;
         }
         Pair<?, ?> pair = (Pair<?, ?>) o;
-        return key.equals(pair.key) &&
-                value.equals(pair.value);
+        return key.equals(pair.key)
+                && value.equals(pair.value);
     }
 
     @Override

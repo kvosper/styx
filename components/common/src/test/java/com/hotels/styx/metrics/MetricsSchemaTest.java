@@ -81,12 +81,12 @@ public class MetricsSchemaTest {
         assertThat(validatedRegistry.timer("wild.card"), is(instanceOf(Timer.class)));
     }
 
-    @Test(expectedExceptions = MetricNameNotInSchemaException.class, expectedExceptionsMessageRegExp = "Attempted to access COUNTER garble, but no metric with that name exists")
+    @Test(expectedExceptions = MetricNameNotInSchemaException.class, expectedExceptionsMessageRegExp = "Invalid metric: COUNTER garble, does not exist in schema")
     public void disallowsUnspecifiedMetrics() {
         validatedRegistry.counter("garble");
     }
 
-    @Test(expectedExceptions = MetricNameNotInSchemaException.class, expectedExceptionsMessageRegExp = "Attempted to access COUNTER bar, but metric bar is a HISTOGRAM")
+    @Test(expectedExceptions = MetricNameNotInSchemaException.class, expectedExceptionsMessageRegExp = "Invalid metric: COUNTER bar, schema declares bar as a HISTOGRAM")
     public void disallowsMetricsIfTypeDoesNotMatchSchema() {
         validatedRegistry.counter("bar");
     }
@@ -94,13 +94,13 @@ public class MetricsSchemaTest {
     @Test
     public void disallowsUnspecifiedMetricsNoException() {
         validatedRegistryNoException.counter("garble");
-        assertThat(log.log(), hasItem(loggingEvent(ERROR, "Attempted to access COUNTER garble, but no metric with that name exists")));
+        assertThat(log.log(), hasItem(loggingEvent(ERROR, "Invalid metric: COUNTER garble, does not exist in schema")));
     }
 
     @Test
     public void disallowsMetricsIfTypeDoesNotMatchSchemaNoException() {
         validatedRegistryNoException.counter("bar");
-        assertThat(log.log(), hasItem(loggingEvent(ERROR, "Attempted to access COUNTER bar, but metric bar is a HISTOGRAM")));
+        assertThat(log.log(), hasItem(loggingEvent(ERROR, "Invalid metric: COUNTER bar, schema declares bar as a HISTOGRAM")));
     }
 
     @Test
