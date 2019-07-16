@@ -1,4 +1,4 @@
-package com.hotels.styx.admin.handlers;
+package com.hotels.styx.common;
 
 import com.hotels.styx.api.Eventual;
 import com.hotels.styx.api.HttpRequest;
@@ -17,10 +17,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
-/**
- * TODO - a test of the expiration (need to add mocked Clock to MethodCache)
- * TODO - figure out best way to include method params in Key
- */
 public class MethodCacheTest {
     private final HttpRequest requestFoo = post("http://example.org/foo").build();
     private final HttpRequest requestBar = post("http://example.org/bar").build();
@@ -36,10 +32,14 @@ public class MethodCacheTest {
                     .build());
         };
 
-        WebServiceHandler cached = MethodCache.cached(WebServiceHandler.class, hand, Duration.ofDays(1234), args -> {
-            HttpRequest rq = (HttpRequest) args[0];
-            return rq.path();
-        });
+        WebServiceHandler cached = MethodCache.<WebServiceHandler>cached()
+                .implementation(hand)
+                .interfaceType(WebServiceHandler.class)
+                .keyExtractor(args -> {
+                    HttpRequest rq = (HttpRequest) args[0];
+                    return rq.path();
+                })
+                .build();
 
         for (int i = 0; i < 10; i++) {
             assertThat(call(cached, requestFoo).bodyAs(UTF_8), is("/foo"));
@@ -49,6 +49,44 @@ public class MethodCacheTest {
         for (int i = 0; i < 10; i++) {
             assertThat(call(cached, requestBar).bodyAs(UTF_8), is("/bar"));
         }
+        assertThat(calls.get(), is(2));
+    }
+
+    @Test
+    public void cacheExpiresAfterLackOfAccess() {
+        AtomicInteger calls = new AtomicInteger();
+
+        WebServiceHandler hand = (request, context) -> {
+            calls.incrementAndGet();
+            return Eventual.of(response()
+                    .body(request.path(), UTF_8)
+                    .build());
+        };
+
+        AtomicInteger tick = new AtomicInteger();
+
+        WebServiceHandler cached = MethodCache.<WebServiceHandler>cached()
+                .implementation(hand)
+                .interfaceType(WebServiceHandler.class)
+                .expiration(Duration.ofSeconds(5))
+                .clock(tick::get)
+                .keyExtractor(args -> {
+                    HttpRequest rq = (HttpRequest) args[0];
+                    return rq.path();
+                })
+                .build();
+
+        for (int i = 0; i < 3; i++) {
+            assertThat(call(cached, requestFoo).bodyAs(UTF_8), is("/foo"));
+        }
+        assertThat(calls.get(), is(1));
+
+        tick.set(5001);
+
+        for (int i = 0; i < 3; i++) {
+            assertThat(call(cached, requestFoo).bodyAs(UTF_8), is("/foo"));
+        }
+
         assertThat(calls.get(), is(2));
     }
 
