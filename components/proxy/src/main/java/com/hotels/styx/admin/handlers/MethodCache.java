@@ -18,7 +18,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 public class MethodCache implements InvocationHandler {
     private final Object object;
     private final Method method;
-    private final Duration expiration;
     private final Function<Object[], Object> keyExtractor;
     private final Cache<Object, Object> cache;
 
@@ -31,7 +30,6 @@ public class MethodCache implements InvocationHandler {
 
         this.object = object;
         this.method = method;
-        this.expiration = expiration;
         this.keyExtractor = keyExtractor;
         cache = CacheBuilder.newBuilder()
                 .expireAfterAccess(expiration.toMillis(), MILLISECONDS)
@@ -73,15 +71,5 @@ public class MethodCache implements InvocationHandler {
 
     private interface Invoker {
         Object invoke() throws Exception;
-
-        default Object invokeWithoutCheckedException() {
-            try {
-                return invoke();
-            } catch (RuntimeException | Error e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
     }
 }
