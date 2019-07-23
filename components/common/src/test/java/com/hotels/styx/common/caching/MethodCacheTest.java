@@ -1,10 +1,11 @@
-package com.hotels.styx.common;
+package com.hotels.styx.common.caching;
 
 import com.hotels.styx.api.Eventual;
 import com.hotels.styx.api.HttpRequest;
 import com.hotels.styx.api.HttpResponse;
 import com.hotels.styx.api.WebServiceHandler;
 import com.hotels.styx.server.HttpInterceptorContext;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 import reactor.core.publisher.Mono;
 
@@ -20,6 +21,21 @@ import static org.hamcrest.Matchers.is;
 public class MethodCacheTest {
     private final HttpRequest requestFoo = post("http://example.org/foo").build();
     private final HttpRequest requestBar = post("http://example.org/bar").build();
+    private AtomicInteger tick;
+    private MethodCaching<WebServiceHandler> caching;
+
+    @BeforeMethod
+    public void setUp() {
+        tick = new AtomicInteger();
+        caching = new MethodCaching.Builder<WebServiceHandler>()
+                .interfaceType(WebServiceHandler.class)
+                .keyExtractor(args -> {
+                    HttpRequest rq = (HttpRequest) args[0];
+                    return rq.path();
+                })
+                .clock(tick::get)
+                .build();
+    }
 
     @Test
     public void cachesResultsOfCalls() {
@@ -32,14 +48,7 @@ public class MethodCacheTest {
                     .build());
         };
 
-        WebServiceHandler cached = MethodCache.<WebServiceHandler>cached()
-                .implementation(hand)
-                .interfaceType(WebServiceHandler.class)
-                .keyExtractor(args -> {
-                    HttpRequest rq = (HttpRequest) args[0];
-                    return rq.path();
-                })
-                .build();
+        WebServiceHandler cached = caching.cacheMethod(hand);
 
         for (int i = 0; i < 10; i++) {
             assertThat(call(cached, requestFoo).bodyAs(UTF_8), is("/foo"));
@@ -63,18 +72,7 @@ public class MethodCacheTest {
                     .build());
         };
 
-        AtomicInteger tick = new AtomicInteger();
-
-        WebServiceHandler cached = MethodCache.<WebServiceHandler>cached()
-                .implementation(hand)
-                .interfaceType(WebServiceHandler.class)
-                .expiration(Duration.ofSeconds(5))
-                .clock(tick::get)
-                .keyExtractor(args -> {
-                    HttpRequest rq = (HttpRequest) args[0];
-                    return rq.path();
-                })
-                .build();
+        WebServiceHandler cached = caching.cacheMethod(hand, Duration.ofSeconds(5));
 
         for (int i = 0; i < 3; i++) {
             assertThat(call(cached, requestFoo).bodyAs(UTF_8), is("/foo"));

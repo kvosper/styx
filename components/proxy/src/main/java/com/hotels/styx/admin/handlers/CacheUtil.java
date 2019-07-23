@@ -2,28 +2,23 @@ package com.hotels.styx.admin.handlers;
 
 import com.hotels.styx.api.HttpRequest;
 import com.hotels.styx.api.WebServiceHandler;
-import com.hotels.styx.common.MethodCache;
 import com.hotels.styx.common.Pair;
+import com.hotels.styx.common.caching.MethodCaching;
 
-import java.time.Duration;
 
 /**
  * Provides a quick way to server-side cache the output of a handler for a URL.
  */
 public final class CacheUtil {
-    private CacheUtil() {
-    }
+    public static final MethodCaching<WebServiceHandler> WEB_SERVICE_HANDLER_CACHING =
+            new MethodCaching.Builder<WebServiceHandler>()
+                    .interfaceType(WebServiceHandler.class)
+                    .keyExtractor(args -> {
+                        HttpRequest rq = (HttpRequest) args[0];
+                        return key(rq);
+                    }).build();
 
-    public static WebServiceHandler cached(WebServiceHandler handler, Duration expiration) {
-        return MethodCache.<WebServiceHandler>cached()
-                .implementation(handler)
-                .interfaceType(WebServiceHandler.class)
-                .expiration(expiration)
-                .keyExtractor(args -> {
-                    HttpRequest request = (HttpRequest) args[0];
-                    return key(request);
-                })
-                .build();
+    private CacheUtil() {
     }
 
     private static Object key(HttpRequest rq) {
