@@ -15,19 +15,11 @@
  */
 package com.hotels.styx.common;
 
-import org.slf4j.Logger;
-
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-
-import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
-import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * A general-purpose state-machine.
@@ -35,21 +27,17 @@ import static org.slf4j.LoggerFactory.getLogger;
  * @param <S> state type
  */
 public final class StateMachine<S> {
-    private static final Logger LOGGER = getLogger(StateMachine.class);
-
     private final Map<Key<S>, Function<Object, S>> transitions;
     private final BiFunction<S, Object, S> inappropriateEventHandler;
     private final StateChangeListener<S> stateChangeListener;
 
     private volatile S currentState;
 
-    private StateMachine(S initialState, List<StateEventHandler<S>> handlers, BiFunction<S, Object, S> inappropriateEventHandler, StateChangeListener<S> stateChangeListener) {
-        this.currentState = requireNonNull(initialState);
-        this.transitions = handlers.stream().collect(toMap(
-                handler -> handler.key,
-                handler -> handler.mapper));
-        this.inappropriateEventHandler = requireNonNull(inappropriateEventHandler);
-        this.stateChangeListener = requireNonNull(stateChangeListener);
+    StateMachine(S initialState, Map<Key<S>, Function<Object, S>> transitions, BiFunction<S, Object, S> inappropriateEventHandler, StateChangeListener<S> stateChangeListener) {
+        this.transitions = transitions;
+        this.inappropriateEventHandler = inappropriateEventHandler;
+        this.stateChangeListener = stateChangeListener;
+        this.currentState = initialState;
     }
 
     /**
@@ -97,7 +85,7 @@ public final class StateMachine<S> {
         return Optional.ofNullable(transitions.get(key));
     }
 
-    private static final class Key<S> {
+    static final class Key<S> {
         private final S state;
         private final Class<?> eventClass;
 
@@ -125,7 +113,7 @@ public final class StateMachine<S> {
         }
     }
 
-    private static class StateEventHandler<S> {
+    static class StateEventHandler<S> {
         private final Key<S> key;
         private final Function<Object, S> mapper;
 
@@ -133,81 +121,13 @@ public final class StateMachine<S> {
             this.key = new Key<>(state, eventClass);
             this.mapper = event -> mapper.apply((E) event);
         }
-    }
 
-    /**
-     * StateMachine builder.
-     *
-     * @param <S> state type
-     */
-    public static final class Builder<S> {
-        private final List<StateEventHandler<S>> stateEventHandlers = new ArrayList<>();
-        private BiFunction<S, Object, S> inappropriateEventHandler;
-        private S initialState;
-        private StateChangeListener<S> stateChangeListener = (oldState, newState, event) -> {
-        };
-
-        /**
-         * Sets the state that the state-machine should start in.
-         *
-         * @param initialState initial state
-         * @return this builder
-         */
-        public Builder<S> initialState(S initialState) {
-            this.initialState = initialState;
-            return this;
+        Key<S> key() {
+            return key;
         }
 
-        /**
-         * Associates a state and event type with a function that returns a new state and possibly side-effects.
-         *
-         * @param state      state to transition from
-         * @param eventClass event class
-         * @param mapper     function that returns the new state
-         * @param <E>        event type
-         * @return this builder
-         */
-        public <E> Builder<S> transition(S state, Class<E> eventClass, Function<E, S> mapper) {
-            this.stateEventHandlers.add(new StateEventHandler<>(state, eventClass, mapper));
-            return this;
-        }
-
-        /**
-         * Determines how to handle an inappropriate event. That is, an event that has no transition associated with the current state.
-         *
-         * @param mapper function that returns the new state
-         * @param <E>    event type
-         * @return this builder
-         */
-        public <E> Builder<S> onInappropriateEvent(BiFunction<S, E, S> mapper) {
-            this.inappropriateEventHandler = (state, event) -> mapper.apply(state, (E) event);
-            return this;
-        }
-
-        /**
-         * Add state-change-listener to be informed about state changes, including due to inappropriate events.
-         *
-         * @param stateChangeListener state-change-listener
-         * @return this builder
-         */
-        public Builder<S> onStateChange(StateChangeListener<S> stateChangeListener) {
-            this.stateChangeListener = requireNonNull(stateChangeListener);
-            return this;
-        }
-
-        /**
-         * Builds a new state-machine with on the configuration provided to this builder.
-         *
-         * @return a new state-machine
-         */
-        public StateMachine<S> build() {
-            return new StateMachine<>(initialState, stateEventHandlers, inappropriateEventHandler, stateChangeListener);
-        }
-
-        public Builder<S> debugTransitions(String messagePrefix) {
-            return this.onStateChange((oldState, newState, event)-> {
-                LOGGER.info("{} {}: {} -> {}", new Object[] {messagePrefix, event, oldState, newState});
-            });
+        Function<Object, S> mapper() {
+            return mapper;
         }
     }
 }
