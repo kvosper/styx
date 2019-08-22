@@ -38,14 +38,14 @@ public class FsmEventProcessorTest {
 
     @BeforeMethod
     public void setUp() {
-        stateMachine = new StateMachine.Builder<String>()
+        stateMachine = new StateMachineFactory.Builder<String>()
                 .initialState("start")
                 .transition( "start", TestEventOk.class, event -> "end")
                 .transition( "start", TestEventError.class, event -> {
                     throw new RuntimeException("Test exception message");
                 })
                 .onInappropriateEvent((x, y) -> "error")
-                .build();
+                .build().newStateMachine();
 
         errorHandler = mock(BiConsumer.class);
         logger = new LoggingTestSupport(FsmEventProcessor.class);

@@ -19,6 +19,7 @@ import com.hotels.styx.common.EventProcessor;
 import com.hotels.styx.common.FsmEventProcessor;
 import com.hotels.styx.common.QueueDrainingEventProcessor;
 import com.hotels.styx.common.StateMachine;
+import com.hotels.styx.common.StateMachineFactory;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 
@@ -41,7 +42,8 @@ public class ResponseEventListener {
     private Runnable cancelAction = () -> { };
     private Runnable whenFinishedAction = () -> { };
 
-    private final StateMachine<State> fsm = new StateMachine.Builder<State>()
+    // TODO use new factory to optimise
+    private final StateMachine<State> fsm = new StateMachineFactory.Builder<State>()
             .initialState(INITIAL)
             .transition(INITIAL, MessageHeaders.class, event -> STREAMING)
             .transition(INITIAL, MessageCancelled.class, event -> {
@@ -76,7 +78,7 @@ public class ResponseEventListener {
                 return TERMINATED;
             })
             .onInappropriateEvent((state, event) -> state)
-            .build();
+            .build().newStateMachine();
 
     private ResponseEventListener(Publisher<LiveHttpResponse> publisher) {
         this.publisher = Flux.from(requireNonNull(publisher));

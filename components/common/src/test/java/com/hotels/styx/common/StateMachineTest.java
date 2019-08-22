@@ -33,11 +33,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class StateMachineTest {
-    private StateMachine.Builder<State> stateMachineBuilder;
+    private StateMachineFactory.Builder<State> stateMachineBuilder;
 
     @BeforeMethod
     public void setUp() {
-        stateMachineBuilder = new StateMachine.Builder<State>()
+        stateMachineBuilder = new StateMachineFactory.Builder<State>()
                 .initialState(STARTED)
                 .onInappropriateEvent((state, event) -> TEST_FAILED);
     }
@@ -50,7 +50,7 @@ public class StateMachineTest {
 
     @Test
     public void startsInInitialState() {
-        StateMachine<State> stateMachine = stateMachineBuilder.build();
+        StateMachine<State> stateMachine = stateMachineBuilder.build().newStateMachine();
 
         assertThat(stateMachine.currentState(), Matchers.is(STARTED));
     }
@@ -62,7 +62,7 @@ public class StateMachineTest {
 
         StateMachine<State> stateMachine = stateMachineBuilder
                 .onInappropriateEvent(inappropriateEventHandler)
-                .build();
+                .build().newStateMachine();
 
         stateMachine.handle(new TestEvent(), "");
 
@@ -77,7 +77,7 @@ public class StateMachineTest {
 
         StateMachine<State> stateMachine = stateMachineBuilder
                 .transition(STARTED, TestEvent.class, mapper)
-                .build();
+                .build().newStateMachine();
 
         stateMachine.handle(new TestEvent(), "");
 
