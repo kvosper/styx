@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2018 Expedia Inc.
+  Copyright (C) 2013-2019 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -41,7 +41,11 @@ public final class StateMachineFactory<S> {
 
     private final S initialState;
 
-    private StateMachineFactory(S initialState, List<StateEventHandler<S>> handlers, BiFunction<S, Object, S> inappropriateEventHandler, StateChangeListener<S> stateChangeListener) {
+    private StateMachineFactory(
+            S initialState,
+            List<StateEventHandler<S>> handlers,
+            BiFunction<S, Object, S> inappropriateEventHandler,
+            StateChangeListener<S> stateChangeListener) {
         this.initialState = requireNonNull(initialState);
         this.transitions = handlers.stream().collect(toMap(
                 StateEventHandler::key,

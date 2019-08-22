@@ -39,6 +39,7 @@ import com.hotels.styx.client.netty.ConsumerDisconnectedException;
 import com.hotels.styx.common.FsmEventProcessor;
 import com.hotels.styx.common.QueueDrainingEventProcessor;
 import com.hotels.styx.common.StateMachine;
+import com.hotels.styx.common.StateMachineFactory;
 import com.hotels.styx.server.BadRequestException;
 import com.hotels.styx.server.HttpErrorStatusListener;
 import com.hotels.styx.server.HttpInterceptorContext;
@@ -145,7 +146,8 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
     }
 
     private StateMachine<State> createStateMachine() {
-        return new StateMachine.Builder<State>()
+        // TODO use new factory to optimise
+        return new StateMachineFactory.Builder<State>()
                 .initialState(ACCEPTING_REQUESTS)
 
                 .transition(ACCEPTING_REQUESTS, RequestReceivedEvent.class, event -> onLegitimateRequest(event.request, event.ctx))
@@ -181,7 +183,7 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
                     return state;
                 })
 
-                .build();
+                .build().newStateMachine();
     }
 
     private State logError(State state, Throwable cause) {

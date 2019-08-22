@@ -20,6 +20,7 @@ import com.hotels.styx.api.extension.Origin;
 import com.hotels.styx.api.exceptions.ResponseTimeoutException;
 import com.hotels.styx.client.netty.ConsumerDisconnectedException;
 import com.hotels.styx.common.StateMachine;
+import com.hotels.styx.common.StateMachineFactory;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
@@ -91,7 +92,8 @@ class FlowControllingHttpContentProducer {
         this.delayedTearDownAction = requireNonNull(delayedTearDownAction);
         this.origin = requireNonNull(origin);
 
-        this.stateMachine = new StateMachine.Builder<ProducerState>()
+        // TODO use new factory to optimise
+        this.stateMachine = new StateMachineFactory.Builder<ProducerState>()
                 .initialState(BUFFERING)
 
                 .transition(BUFFERING, RxBackpressureRequestEvent.class, this::rxBackpressureRequestInBuffering)
@@ -141,7 +143,7 @@ class FlowControllingHttpContentProducer {
                     return state;
                 })
 
-                .build();
+                .build().newStateMachine();
 
         this.loggingPrefix = loggingPrefix;
     }

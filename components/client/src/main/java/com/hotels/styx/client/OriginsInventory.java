@@ -42,6 +42,7 @@ import com.hotels.styx.client.origincommands.GetOriginsInventorySnapshot;
 import com.hotels.styx.common.EventProcessor;
 import com.hotels.styx.common.QueueDrainingEventProcessor;
 import com.hotels.styx.common.StateMachine;
+import com.hotels.styx.common.StateMachineFactory;
 import org.slf4j.Logger;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -428,7 +429,8 @@ public final class OriginsInventory
             this.connectionPool = hostConnectionPoolFactory.create(origin);
             this.hostClient = hostClientFactory.create(connectionPool);
 
-            this.machine = new StateMachine.Builder<OriginState>()
+            // TODO use new factory to optimise
+            this.machine = new StateMachineFactory.Builder<OriginState>()
                     .initialState(ACTIVE)
                     .onInappropriateEvent((state, event) -> state)
                     .onStateChange(this::onStateChange)
@@ -439,7 +441,7 @@ public final class OriginsInventory
                     .transition(INACTIVE, DisableOrigin.class, e -> DISABLED)
                     .transition(DISABLED, EnableOrigin.class, e -> INACTIVE)
 
-                    .build();
+                    .build().newStateMachine();
 
             this.gaugeName = appId + "." + origin.id() + ".status";
         }
