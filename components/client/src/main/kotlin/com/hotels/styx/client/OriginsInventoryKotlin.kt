@@ -22,6 +22,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.util.*
+import java.util.Objects.isNull
 import java.util.Objects.nonNull
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
@@ -108,19 +109,24 @@ class OriginsInventoryKotlin(
             .forEach(
                 Consumer { originId ->
                     val origin = newOriginsMap[originId]
-                    if (isNewOrigin(originId, origin)) {
-                        val monitoredOrigin = addMonitoredEndpoint(origin!!)
-                        originChanges.addOrReplaceOrigin(originId!!, monitoredOrigin)
-                    } else if (isUpdatedOrigin(originId, origin)) {
-                        val monitoredOrigin: MonitoredOrigin =
-                            changeMonitoredEndpoint(origin!!)
-                        originChanges.addOrReplaceOrigin(originId!!, monitoredOrigin)
-                    } else if (isUnchangedOrigin(originId, origin)) {
-                        log.info("Existing origin has been left unchanged. Origin=$appId:$origin")
-                        originChanges.keepExistingOrigin(originId!!, origins[originId]!!)
-                    } else if (isRemovedOrigin(originId, origin)) {
-                        removeMonitoredEndpoint(originId)
-                        originChanges.noteRemovedOrigin()
+
+                    when {
+                        isNewOrigin(originId, origin) -> {
+                            val monitoredOrigin = addMonitoredEndpoint(origin!!)
+                            originChanges.addOrReplaceOrigin(originId!!, monitoredOrigin)
+                        }
+                        isUpdatedOrigin(originId, origin) -> {
+                            val monitoredOrigin = changeMonitoredEndpoint(origin!!)
+                            originChanges.addOrReplaceOrigin(originId!!, monitoredOrigin)
+                        }
+                        isUnchangedOrigin(originId, origin) -> {
+                            log.info("Existing origin has been left unchanged. Origin=$appId:$origin")
+                            originChanges.keepExistingOrigin(originId!!, origins[originId]!!)
+                        }
+                        isRemovedOrigin(originId, origin) -> {
+                            removeMonitoredEndpoint(originId)
+                            originChanges.noteRemovedOrigin()
+                        }
                     }
                 }
             )
@@ -164,7 +170,7 @@ class OriginsInventoryKotlin(
     }
 
     private fun addMonitoredEndpoint(origin: Origin): MonitoredOrigin {
-        val monitoredOrigin: MonitoredOrigin = MonitoredOrigin(origin)
+        val monitoredOrigin = MonitoredOrigin(origin)
         monitoredOrigin.startMonitoring()
         log.info("New origin added and activated. Origin={}:{}", appId, monitoredOrigin.origin.id())
         return monitoredOrigin
@@ -201,7 +207,7 @@ class OriginsInventoryKotlin(
 
     private fun isRemovedOrigin(originId: Id, newOrigin: Origin?): Boolean {
         val oldOrigin: MonitoredOrigin? = origins[originId]
-        return nonNull(oldOrigin) && Objects.isNull(newOrigin)
+        return nonNull(oldOrigin) && isNull(newOrigin)
     }
 
     private fun onEvent(origin: Origin, event: Any) {
