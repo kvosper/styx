@@ -7,9 +7,14 @@ import com.google.common.eventbus.EventBus
 import com.hotels.styx.api.Eventual
 import com.hotels.styx.api.HttpHandler
 import com.hotels.styx.api.Id
+import com.hotels.styx.api.Metrics.APPID_TAG
+import com.hotels.styx.api.Metrics.ORIGINID_TAG
 import com.hotels.styx.api.extension.*
 import com.hotels.styx.api.extension.RemoteHost.remoteHost
+import com.hotels.styx.api.extension.service.BackendService
 import com.hotels.styx.client.connectionpool.ConnectionPool
+import com.hotels.styx.client.connectionpool.ConnectionPools
+import com.hotels.styx.client.connectionpool.ConnectionPools.simplePoolFactory
 import com.hotels.styx.client.healthcheck.OriginHealthStatusMonitor
 import com.hotels.styx.client.healthcheck.monitors.NoOriginHealthStatusMonitor
 import com.hotels.styx.client.origincommands.DisableOrigin
@@ -18,7 +23,11 @@ import com.hotels.styx.client.origincommands.GetOriginsInventorySnapshot
 import com.hotels.styx.common.EventProcessor
 import com.hotels.styx.common.Preconditions.checkArgument
 import com.hotels.styx.common.QueueDrainingEventProcessor
+import com.hotels.styx.common.StateMachine
+import com.hotels.styx.common.StyxFutures.await
+import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Tags
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.util.*
@@ -67,6 +76,16 @@ class OriginsInventoryKotlin(
 
     fun closed(): Boolean = closed.get()
 
+    fun origins(): List<Origin> = origins.values.map { it.origin }
+
+    internal fun originCount(state: OriginState): Int {
+        return origins.values.stream()
+            .map { it.state() }
+            .filter { state == it }
+            .count()
+            .toInt()
+    }
+
     override fun snapshot(): Iterable<RemoteHost> = pools(Active)
 
     override fun addOriginsChangeListener(listener: OriginsChangeListener) = inventoryListeners.addListener(listener)
@@ -99,8 +118,8 @@ class OriginsInventoryKotlin(
         }
     }
 
-    private fun handleSetOriginsEvent(event : SetOriginsEvent) {
-        val newOriginsMap : Map<Id, Origin> = event.newOrigins.associateBy { it.id() }
+    private fun handleSetOriginsEvent(event: SetOriginsEvent) {
+        val newOriginsMap: Map<Id, Origin> = event.newOrigins.associateBy { it.id() }
 
         val originChanges = OriginChanges()
 
@@ -239,6 +258,154 @@ class OriginsInventoryKotlin(
                 }
                 remoteHost(origin.origin, hostClient, origin.hostClient)
             }
+
+    private inner class MonitoredOrigin(val origin: Origin) {
+        private val gaugeName = "origin.status"
+        private val connectionPool: ConnectionPool = hostConnectionPoolFactory.create(origin)
+        val hostClient: StyxHostHttpClient = hostClientFactory.create(connectionPool)
+        private val machine: StateMachine<OriginState> =
+            StateMachine.Builder<OriginState>()
+                .initialState(Active)
+                .onInappropriateEvent<Any> { state, _ -> state }
+                .transition(Active, Unhealthy::class.java) { Inactive }
+                .transition(Inactive, Healthy::class.java) { Active }
+                .transition(Active, DisableOrigin::class.java) { Disabled }
+                .transition(Inactive, DisableOrigin::class.java) { Disabled }
+                .transition(Disabled, EnableOrigin::class.java) { Inactive }
+                .build()
+
+        private var statusGauge: Gauge? = null
+
+        init {
+            registerMeters()
+        }
+
+        fun state(): OriginState = machine.currentState()
+
+        fun close() {
+            stopMonitoring()
+            connectionPool.close()
+            deregisterMeters()
+        }
+
+        fun startMonitoring() {
+            originHealthStatusMonitor.monitor(setOf(origin))
+        }
+
+        fun stopMonitoring() {
+            originHealthStatusMonitor.stopMonitoring(setOf(origin))
+        }
+
+        @Synchronized
+        fun onEvent(event: Any) = machine.handle(event)
+
+        private fun registerMeters() {
+            val gaugeTags = Tags.of(APPID_TAG, appId.toString(), ORIGINID_TAG, origin.id().toString())
+            statusGauge = Gauge.builder(gaugeName) { state().gaugeValue }
+                .tags(gaugeTags)
+                .register(meterRegistry)
+        }
+
+        private fun deregisterMeters() {
+            statusGauge?.let {
+                meterRegistry.remove(it)
+            }
+        }
+    }
+
+    private class OriginChanges {
+        var monitoredOrigins: ImmutableMap.Builder<Id, MonitoredOrigin> = ImmutableMap.builder()
+        var changed = AtomicBoolean(false)
+
+        fun addOrReplaceOrigin(originId: Id, origin: MonitoredOrigin) {
+            monitoredOrigins.put(originId, origin)
+            changed.set(true)
+        }
+
+        fun keepExistingOrigin(originId: Id, origin: MonitoredOrigin) {
+            monitoredOrigins.put(originId, origin)
+        }
+
+        fun noteRemovedOrigin() {
+            changed.set(true)
+        }
+
+        fun changed(): Boolean {
+            return changed.get()
+        }
+
+        fun updatedOrigins(): Map<Id, MonitoredOrigin> {
+            return monitoredOrigins.build()
+        }
+    }
+
+    fun newOriginsInventoryBuilder(appId: Id) = Builder(appId)
+
+    fun newOriginsInventoryBuilder(metricRegistry: MeterRegistry, backendService: BackendService) =
+        Builder(backendService.id())
+            .meterRegistry(metricRegistry)
+            .connectionPoolFactory(simplePoolFactory(backendService, metricRegistry))
+            .initialOrigins(backendService.origins())
+
+    /**
+     * A builder for {@link com.hotels.styx.client.OriginsInventory}.
+     */
+    class Builder(val appId: Id) {
+        private var originHealthMonitor: OriginHealthStatusMonitor = NoOriginHealthStatusMonitor()
+        private var meterRegistry: MeterRegistry? = null
+        private var eventBus = EventBus()
+        private var connectionPoolFactory = simplePoolFactory()
+        private var hostClientFactory: StyxHostHttpClient.Factory? = null
+        private var initialOrigins: Set<Origin> = emptySet()
+
+        fun meterRegistry(meterRegistry: MeterRegistry): Builder {
+            this.meterRegistry = meterRegistry
+            return this
+        }
+
+        fun connectionPoolFactory(connectionPoolFactory: ConnectionPool.Factory): Builder {
+            this.connectionPoolFactory = Objects.requireNonNull(connectionPoolFactory)!!
+            return this
+        }
+
+        fun hostClientFactory(hostClientFactory: StyxHostHttpClient.Factory): Builder {
+            this.hostClientFactory = Objects.requireNonNull(hostClientFactory)
+            return this
+        }
+
+        fun originHealthMonitor(originHealthMonitor: OriginHealthStatusMonitor): Builder {
+            this.originHealthMonitor = Objects.requireNonNull(originHealthMonitor)!!
+            return this
+        }
+
+        fun eventBus(eventBus: EventBus): Builder {
+            this.eventBus = Objects.requireNonNull(eventBus)!!
+            return this
+        }
+
+        fun initialOrigins(origins: Set<Origin>): Builder {
+            initialOrigins = ImmutableSet.copyOf(origins)
+            return this
+        }
+
+        fun build(): OriginsInventory {
+            await(originHealthMonitor.start())
+            if (hostClientFactory == null) {
+                hostClientFactory = StyxHostHttpClient.Factory { StyxHostHttpClient.create(it) }
+            }
+            checkNotNull(meterRegistry) { "metricRegistry is required" }
+            val originsInventory = OriginsInventory(
+                eventBus,
+                appId,
+                originHealthMonitor,
+                connectionPoolFactory,
+                hostClientFactory,
+                meterRegistry
+            )
+            originsInventory.setOrigins(initialOrigins)
+            return originsInventory
+        }
+    }
 }
 
 private sealed class OriginEvent
@@ -253,58 +420,9 @@ private sealed class OriginHealthStatus
 private object Healthy : OriginHealthStatus()
 private object Unhealthy : OriginHealthStatus()
 
-private class MonitoredOrigin(val origin: Origin) {
-    val hostClient: StyxHostHttpClient = TODO()
 
-    fun state(): OriginState {
-        TODO()
-    }
+internal sealed class OriginState(val gaugeValue: Int)
+internal object Active : OriginState(1)
+internal object Inactive : OriginState(0)
+internal object Disabled : OriginState(-1)
 
-    fun close() {
-        TODO()
-    }
-    
-    fun startMonitoring() {
-        TODO()
-    }
-    
-    fun stopMonitoring() {
-        TODO()
-    }
-
-    @Synchronized
-    fun onEvent(event: Any) {
-        TODO()
-    }
-}
-
-private sealed class OriginState(val gaugeValue: Int)
-private object Active : OriginState(1)
-private object Inactive : OriginState(0)
-private object Disabled : OriginState(-1)
-
-private class OriginChanges {
-    var monitoredOrigins: ImmutableMap.Builder<Id, MonitoredOrigin> = ImmutableMap.builder()
-    var changed = AtomicBoolean(false)
-
-    fun addOrReplaceOrigin(originId: Id, origin: MonitoredOrigin) {
-        monitoredOrigins.put(originId, origin)
-        changed.set(true)
-    }
-
-    fun keepExistingOrigin(originId: Id, origin: MonitoredOrigin) {
-        monitoredOrigins.put(originId, origin)
-    }
-
-    fun noteRemovedOrigin() {
-        changed.set(true)
-    }
-
-    fun changed(): Boolean {
-        return changed.get()
-    }
-
-    fun updatedOrigins(): Map<Id, MonitoredOrigin> {
-        return monitoredOrigins.build()
-    }
-}
