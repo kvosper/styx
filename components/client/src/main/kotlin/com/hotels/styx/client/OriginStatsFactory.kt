@@ -13,43 +13,28 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-package com.hotels.styx.client;
+package com.hotels.styx.client
 
-import com.hotels.styx.api.extension.Origin;
-import com.hotels.styx.client.applications.OriginStats;
-import com.hotels.styx.client.applications.metrics.OriginMetrics;
-import io.micrometer.core.instrument.MeterRegistry;
-
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
-import static java.util.Objects.requireNonNull;
-
+import com.hotels.styx.api.extension.Origin
+import com.hotels.styx.client.applications.OriginStats
+import com.hotels.styx.client.applications.metrics.OriginMetrics
+import io.micrometer.core.instrument.MeterRegistry
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 
 /**
  * A factory that creates {@link OriginStats} instances using a metric registry it wraps. If an {@link OriginStats} already
  * exists for an origin, the same instance will be returned again.
  */
-
-public interface OriginStatsFactory {
-    OriginStats originStats(Origin origin);
+interface OriginStatsFactory {
+    fun originStats(origin: Origin): OriginStats
 
     /**
      * A caching OriginStatsFactory. A newly created OriginStats object is cached,
      * and the cached copy is returned for future invocations.
      */
-    class CachingOriginStatsFactory implements OriginStatsFactory {
-        private final ConcurrentMap<Origin, OriginMetrics> metricsByOrigin = new ConcurrentHashMap<>();
-        private final MeterRegistry meterRegistry;
-
-        /**
-         * Constructs a new instance.
-         *
-         * @param meterRegistry a meter registry
-         */
-        public CachingOriginStatsFactory(MeterRegistry meterRegistry) {
-            this.meterRegistry = requireNonNull(meterRegistry);
-        }
+    class CachingOriginStatsFactory(private val meterRegistry: MeterRegistry) : OriginStatsFactory {
+        private val metricsByOrigin: ConcurrentMap<Origin, OriginMetrics> = ConcurrentHashMap()
 
         /**
          * Construct a new {@link OriginStats} for an origin, or return a previously created one if it exists.
@@ -57,8 +42,8 @@ public interface OriginStatsFactory {
          * @param origin origin to collect stats for
          * @return the {@link OriginStats}
          */
-        public OriginStats originStats(Origin origin) {
-            return metricsByOrigin.computeIfAbsent(origin, theOrigin -> new OriginMetrics(meterRegistry, theOrigin.id().toString(), theOrigin.applicationId().toString()));
+        override fun originStats(origin: Origin): OriginStats = metricsByOrigin.computeIfAbsent(origin) {
+            OriginMetrics(meterRegistry, it.id().toString(), it.applicationId().toString())
         }
     }
 }
