@@ -30,7 +30,7 @@ import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 
 
-class OriginsInventoryKotlin(
+class OriginsInventory(
     val eventBus: EventBus,
     val appId: Id,
     val originHealthStatusMonitor: OriginHealthStatusMonitor,
@@ -351,8 +351,8 @@ class OriginsInventoryKotlin(
                 appId,
                 originHealthMonitor,
                 connectionPoolFactory,
-                hostClientFactory,
-                meterRegistry
+                hostClientFactory!!,
+                meterRegistry!!
             )
             originsInventory.setOrigins(initialOrigins)
             return originsInventory

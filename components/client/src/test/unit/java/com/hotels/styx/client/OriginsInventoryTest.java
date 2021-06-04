@@ -44,8 +44,6 @@ import static com.hotels.styx.api.Metrics.APPID_TAG;
 import static com.hotels.styx.api.Metrics.ORIGINID_TAG;
 import static com.hotels.styx.api.extension.Origin.newOriginBuilder;
 import static com.hotels.styx.api.extension.service.ConnectionPoolSettings.defaultConnectionPoolSettings;
-import static com.hotels.styx.client.OriginsInventory.OriginState.ACTIVE;
-import static com.hotels.styx.client.OriginsInventory.OriginState.DISABLED;
 import static com.hotels.styx.support.matchers.ContainsExactlyOneMatcher.containsExactlyOne;
 import static com.hotels.styx.support.matchers.IsOptional.isAbsent;
 import static com.hotels.styx.support.matchers.IsOptional.isValue;
@@ -63,6 +61,9 @@ import static org.mockito.Mockito.when;
 public class OriginsInventoryTest {
     private static final Origin ORIGIN_1 = newOriginBuilder("localhost", 8001).applicationId(GENERIC_APP).id("app-01").build();
     private static final Origin ORIGIN_2 = newOriginBuilder("localhost", 8002).applicationId(GENERIC_APP).id("app-02").build();
+
+    private static final Active ACTIVE = Active.INSTANCE;
+    private static final Disabled DISABLED = Disabled.INSTANCE;
 
     private final ConnectionPool.Factory connectionFactory = connectionPoolFactory();
 
