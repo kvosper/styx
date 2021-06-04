@@ -40,6 +40,7 @@ class OriginsInventoryKotlin(
 ) : OriginHealthStatusMonitor.Listener, OriginsCommandsListener, ActiveOrigins, OriginsChangeListener.Announcer,
     Closeable, EventProcessor {
     private val log = getLogger(OriginsInventory::class.java)
+    private val gaugeName = "origin.status"
     private val eventQueue: QueueDrainingEventProcessor
     private val inventoryListeners = Announcer.to(OriginsChangeListener::class.java)
     private var origins: Map<Id, MonitoredOrigin> = emptyMap()
@@ -118,21 +119,20 @@ class OriginsInventoryKotlin(
         val monitoredOrigins = HashMap<Id, MonitoredOrigin>()
         var changed = false
 
-        oldAndNewOriginIds
-            .map {
-                originChange(it, newOriginsMap)
-            }.forEach {
-                when (it) {
-                    is NewOriginAdded -> monitoredOrigins[it.originId] = addMonitoredEndpoint(it.origin)
-                    is OriginRemoved -> removeMonitoredEndpoint(it.originId)
-                    is OriginUnchanged -> {
-                        log.info("Existing origin has been left unchanged. Origin=$appId:${it.origin}")
-                        monitoredOrigins[it.originId] = origins[it.originId]!!
-                    }
-                    is OriginUpdated -> monitoredOrigins[it.originId] = changeMonitoredEndpoint(it.newOrigin)
+        oldAndNewOriginIds.map {
+            originChange(it, newOriginsMap)
+        }.forEach {
+            when (it) {
+                is NewOriginAdded -> monitoredOrigins[it.originId] = addMonitoredEndpoint(it.origin)
+                is OriginRemoved -> removeMonitoredEndpoint(it.originId)
+                is OriginUnchanged -> {
+                    log.info("Existing origin has been left unchanged. Origin=$appId:${it.origin}")
+                    monitoredOrigins[it.originId] = origins[it.originId]!!
                 }
-                changed = changed || it.change
+                is OriginUpdated -> monitoredOrigins[it.originId] = changeMonitoredEndpoint(it.newOrigin)
             }
+            changed = changed || it.change
+        }
 
         origins = monitoredOrigins
 
@@ -224,8 +224,7 @@ class OriginsInventoryKotlin(
     }
 
     private fun pools(state: OriginState): Collection<RemoteHost> =
-        origins.values
-            .filter { it.state() == state }
+        origins.values.filter { it.state() == state }
             .map { origin ->
                 val hostClient = HttpHandler { request, context ->
                     Eventual(origin.hostClient.sendRequest(request, context))
@@ -234,20 +233,18 @@ class OriginsInventoryKotlin(
             }
 
     private inner class MonitoredOrigin(val origin: Origin) {
-        private val gaugeName = "origin.status"
         private val connectionPool: ConnectionPool = hostConnectionPoolFactory.create(origin)
         val hostClient: StyxHostHttpClient = hostClientFactory.create(connectionPool)
-        private val machine: StateMachine<OriginState> =
-            StateMachine.Builder<OriginState>()
-                .initialState(Active)
-                .onInappropriateEvent<Any> { state, _ -> state }
-                .onStateChange { oldState, newState, _ -> onStateChange(oldState, newState) }
-                .transition(Active, Unhealthy::class.java) { Inactive }
-                .transition(Inactive, Healthy::class.java) { Active }
-                .transition(Active, DisableOrigin::class.java) { Disabled }
-                .transition(Inactive, DisableOrigin::class.java) { Disabled }
-                .transition(Disabled, EnableOrigin::class.java) { Inactive }
-                .build()
+        private val machine = StateMachine.Builder<OriginState>()
+            .initialState(Active)
+            .onInappropriateEvent<Any> { state, _ -> state }
+            .onStateChange { oldState, newState, _ -> onStateChange(oldState, newState) }
+            .transition(Active, Unhealthy::class.java) { Inactive }
+            .transition(Inactive, Healthy::class.java) { Active }
+            .transition(Active, DisableOrigin::class.java) { Disabled }
+            .transition(Inactive, DisableOrigin::class.java) { Disabled }
+            .transition(Disabled, EnableOrigin::class.java) { Inactive }
+            .build()
 
         private var statusGauge: Gauge? = null
 
@@ -370,11 +367,9 @@ private data class OriginHealthEvent(val origin: Origin, val healthStatus: Origi
 private data class EnableOriginCommand(val enableOrigin: EnableOrigin) : OriginEvent()
 private data class DisableOriginCommand(val disableOrigin: DisableOrigin) : OriginEvent()
 
-
 private sealed class OriginHealthStatus
 private object Healthy : OriginHealthStatus()
 private object Unhealthy : OriginHealthStatus()
-
 
 sealed class OriginState(val gaugeValue: Int) {
     override fun toString(): String = javaClass.simpleName.toUpperCase()
