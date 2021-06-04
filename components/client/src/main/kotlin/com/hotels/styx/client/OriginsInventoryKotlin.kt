@@ -29,11 +29,9 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Tags
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
-import java.util.Objects.isNull
-import java.util.Objects.nonNull
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
-import java.util.stream.Collectors
+import java.util.stream.Collectors.toSet
 import java.util.stream.Stream.concat
 
 
@@ -121,38 +119,62 @@ class OriginsInventoryKotlin(
 
         val originChanges = OriginChanges()
 
-        concat(origins.keys.stream(), newOriginsMap.keys.stream())
-            .collect(Collectors.toSet())
-            .forEach(
-                Consumer { originId ->
-                    val origin = newOriginsMap[originId]
+        val newOrigins = NewOrigins(newOriginsMap)
 
-                    when {
-                        isNewOrigin(originId, origin) -> {
-                            val monitoredOrigin = addMonitoredEndpoint(origin!!)
-                            originChanges.addOrReplaceOrigin(originId!!, monitoredOrigin)
-                        }
-                        isUpdatedOrigin(originId, origin) -> {
-                            val monitoredOrigin = changeMonitoredEndpoint(origin!!)
-                            originChanges.addOrReplaceOrigin(originId!!, monitoredOrigin)
-                        }
-                        isUnchangedOrigin(originId, origin) -> {
-                            log.info("Existing origin has been left unchanged. Origin=$appId:$origin")
-                            originChanges.keepExistingOrigin(originId!!, origins[originId]!!)
-                        }
-                        isRemovedOrigin(originId, origin) -> {
-                            removeMonitoredEndpoint(originId)
-                            originChanges.noteRemovedOrigin()
-                        }
+        concat(origins.keys.stream(), newOriginsMap.keys.stream())
+            .collect(toSet())
+            .map {
+                originChange(it, newOriginsMap)
+            }.forEach {
+                when (it) {
+                    is NewOriginAdded -> originChanges.addOrReplaceOrigin(it.originId, addMonitoredEndpoint(it.origin))
+                    is OriginRemoved -> {
+                        removeMonitoredEndpoint(it.originId)
+                        originChanges.noteRemovedOrigin()
                     }
+                    is OriginUnchanged -> {
+                        log.info("Existing origin has been left unchanged. Origin=$appId:${it.origin}")
+                        originChanges.keepExistingOrigin(it.originId, origins[it.originId]!!)
+                    }
+                    is OriginUpdated ->
+                        originChanges.addOrReplaceOrigin(it.originId, changeMonitoredEndpoint(it.newOrigin))
                 }
-            )
+            }
 
         origins = originChanges.updatedOrigins()
 
         if (originChanges.changed()) {
             notifyStateChange()
         }
+    }
+
+    private fun originChange(originId: Id, newOriginsMap: Map<Id, Origin>): OriginChange {
+        return if (newOriginsMap.containsKey(originId)) {
+            if (origins.containsKey(originId)) {
+                if (origins[originId]!!.origin == newOriginsMap[originId]) {
+                    OriginUnchanged(origins[originId]!!.origin)
+                } else {
+                    OriginUpdated(newOriginsMap[originId]!!)
+                }
+            } else {
+                NewOriginAdded(newOriginsMap[originId]!!)
+            }
+        } else if (origins.containsKey(originId)) {
+            OriginRemoved(origins[originId]!!.origin)
+        } else {
+            throw IllegalStateException("Invalid origin update ID $originId")
+        }
+    }
+
+    private inner class NewOrigins(val newOriginsMap: Map<Id, Origin>) {
+        fun isNewOrigin(originId: Id) = newOriginsMap.containsKey(originId) && !origins.containsKey(originId)
+        fun isUpdatedOrigin(originId: Id) = newOriginsMap.containsKey(originId) && origins.containsKey(originId)
+                && origins[originId]!!.origin != newOriginsMap[originId]
+
+        fun isUnchangedOrigin(originId: Id) = newOriginsMap.containsKey(originId) && origins.containsKey(originId)
+                && origins[originId]!!.origin == newOriginsMap[originId]
+
+        fun isRemovedOrigin(originId: Id) = !newOriginsMap.containsKey(originId) && origins.containsKey(originId)
     }
 
     private fun handleCloseEvent() {
@@ -206,25 +228,6 @@ class OriginsInventoryKotlin(
         val host: MonitoredOrigin? = origins[originId]
         host!!.close()
         log.info("Existing origin has been removed. Origin={}:{}", appId, host.origin.id())
-    }
-
-    private fun isNewOrigin(originId: Id, newOrigin: Origin?): Boolean {
-        return nonNull(newOrigin) && !origins.containsKey(originId)
-    }
-
-    private fun isUnchangedOrigin(originId: Id, newOrigin: Origin?): Boolean {
-        val oldOrigin: MonitoredOrigin? = origins[originId]
-        return nonNull(oldOrigin) && nonNull(newOrigin) && oldOrigin!!.origin == newOrigin
-    }
-
-    private fun isUpdatedOrigin(originId: Id, newOrigin: Origin?): Boolean {
-        val oldOrigin: MonitoredOrigin? = origins[originId]
-        return nonNull(oldOrigin) && nonNull(newOrigin) && oldOrigin!!.origin != newOrigin
-    }
-
-    private fun isRemovedOrigin(originId: Id, newOrigin: Origin?): Boolean {
-        val oldOrigin: MonitoredOrigin? = origins[originId]
-        return nonNull(oldOrigin) && isNull(newOrigin)
     }
 
     private fun onEvent(origin: Origin, event: Any) {
@@ -429,7 +432,25 @@ private object Unhealthy : OriginHealthStatus()
 sealed class OriginState(val gaugeValue: Int) {
     override fun toString(): String = javaClass.simpleName.toUpperCase()
 }
+
 object Active : OriginState(1)
 object Inactive : OriginState(0)
 object Disabled : OriginState(-1)
 
+/*
+ fun isNewOrigin(originId : Id) = newOriginsMap.containsKey(originId) && !origins.containsKey(originId)
+        fun isUpdatedOrigin(originId : Id) = newOriginsMap.containsKey(originId) && origins.containsKey(originId)
+                && origins[originId]!!.origin != newOriginsMap[originId]
+        fun isUnchangedOrigin(originId: Id) = newOriginsMap.containsKey(originId) && origins.containsKey(originId)
+                && origins[originId]!!.origin == newOriginsMap[originId]
+        fun isRemovedOrigin(originId : Id) = !newOriginsMap.containsKey(originId) && origins.containsKey(originId)
+* */
+
+sealed class OriginChange(val originId: Id)
+data class NewOriginAdded(val origin: Origin) : OriginChange(origin.id())
+data class OriginUpdated(val newOrigin: Origin) : OriginChange(newOrigin.id())
+data class OriginUnchanged(val origin: Origin) : OriginChange(origin.id())
+data class OriginRemoved(val oldOrigin: Origin) : OriginChange(oldOrigin.id())
+
+
+//
