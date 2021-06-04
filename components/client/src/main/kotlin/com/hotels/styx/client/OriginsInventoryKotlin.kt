@@ -13,7 +13,6 @@ import com.hotels.styx.api.extension.*
 import com.hotels.styx.api.extension.RemoteHost.remoteHost
 import com.hotels.styx.api.extension.service.BackendService
 import com.hotels.styx.client.connectionpool.ConnectionPool
-import com.hotels.styx.client.connectionpool.ConnectionPools
 import com.hotels.styx.client.connectionpool.ConnectionPools.simplePoolFactory
 import com.hotels.styx.client.healthcheck.OriginHealthStatusMonitor
 import com.hotels.styx.client.healthcheck.monitors.NoOriginHealthStatusMonitor
@@ -30,7 +29,6 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Tags
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
-import java.util.*
 import java.util.Objects.isNull
 import java.util.Objects.nonNull
 import java.util.concurrent.atomic.AtomicBoolean
@@ -78,7 +76,7 @@ class OriginsInventoryKotlin(
 
     fun origins(): List<Origin> = origins.values.map { it.origin }
 
-    internal fun originCount(state: OriginState): Int {
+    fun originCount(state: OriginState): Int {
         return origins.values.stream()
             .map { it.state() }
             .filter { state == it }
@@ -267,6 +265,7 @@ class OriginsInventoryKotlin(
             StateMachine.Builder<OriginState>()
                 .initialState(Active)
                 .onInappropriateEvent<Any> { state, _ -> state }
+                .onStateChange { oldState, newState, _ -> onStateChange(oldState, newState) }
                 .transition(Active, Unhealthy::class.java) { Inactive }
                 .transition(Inactive, Healthy::class.java) { Active }
                 .transition(Active, DisableOrigin::class.java) { Disabled }
@@ -298,6 +297,18 @@ class OriginsInventoryKotlin(
 
         @Synchronized
         fun onEvent(event: Any) = machine.handle(event)
+
+        private fun onStateChange(oldState: OriginState, newState: OriginState) {
+            if (oldState != newState) {
+                log.info("Origin state change: origin=\"$appId=${origin.id()}\", change=\"$oldState->$newState\"")
+                if (newState == Disabled) {
+                    stopMonitoring()
+                } else if (oldState == Disabled) {
+                    startMonitoring()
+                }
+                notifyStateChange()
+            }
+        }
 
         private fun registerMeters() {
             val gaugeTags = Tags.of(APPID_TAG, appId.toString(), ORIGINID_TAG, origin.id().toString())
@@ -358,34 +369,28 @@ class OriginsInventoryKotlin(
         private var hostClientFactory: StyxHostHttpClient.Factory? = null
         private var initialOrigins: Set<Origin> = emptySet()
 
-        fun meterRegistry(meterRegistry: MeterRegistry): Builder {
+        fun meterRegistry(meterRegistry: MeterRegistry): Builder = apply {
             this.meterRegistry = meterRegistry
-            return this
         }
 
-        fun connectionPoolFactory(connectionPoolFactory: ConnectionPool.Factory): Builder {
-            this.connectionPoolFactory = Objects.requireNonNull(connectionPoolFactory)!!
-            return this
+        fun connectionPoolFactory(connectionPoolFactory: ConnectionPool.Factory): Builder = apply {
+            this.connectionPoolFactory = connectionPoolFactory
         }
 
-        fun hostClientFactory(hostClientFactory: StyxHostHttpClient.Factory): Builder {
-            this.hostClientFactory = Objects.requireNonNull(hostClientFactory)
-            return this
+        fun hostClientFactory(hostClientFactory: StyxHostHttpClient.Factory): Builder = apply {
+            this.hostClientFactory = hostClientFactory
         }
 
-        fun originHealthMonitor(originHealthMonitor: OriginHealthStatusMonitor): Builder {
-            this.originHealthMonitor = Objects.requireNonNull(originHealthMonitor)!!
-            return this
+        fun originHealthMonitor(originHealthMonitor: OriginHealthStatusMonitor): Builder = apply {
+            this.originHealthMonitor = originHealthMonitor
         }
 
-        fun eventBus(eventBus: EventBus): Builder {
-            this.eventBus = Objects.requireNonNull(eventBus)!!
-            return this
+        fun eventBus(eventBus: EventBus): Builder = apply {
+            this.eventBus = eventBus
         }
 
-        fun initialOrigins(origins: Set<Origin>): Builder {
+        fun initialOrigins(origins: Set<Origin>): Builder = apply {
             initialOrigins = ImmutableSet.copyOf(origins)
-            return this
         }
 
         fun build(): OriginsInventory {
@@ -421,8 +426,10 @@ private object Healthy : OriginHealthStatus()
 private object Unhealthy : OriginHealthStatus()
 
 
-internal sealed class OriginState(val gaugeValue: Int)
-internal object Active : OriginState(1)
-internal object Inactive : OriginState(0)
-internal object Disabled : OriginState(-1)
+sealed class OriginState(val gaugeValue: Int) {
+    override fun toString(): String = javaClass.simpleName.toUpperCase()
+}
+object Active : OriginState(1)
+object Inactive : OriginState(0)
+object Disabled : OriginState(-1)
 
