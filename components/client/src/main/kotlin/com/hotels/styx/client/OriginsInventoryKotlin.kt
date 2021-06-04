@@ -123,23 +123,15 @@ class OriginsInventoryKotlin(
                 originChange(it, newOriginsMap)
             }.forEach {
                 when (it) {
-                    is NewOriginAdded -> {
-                        monitoredOrigins[it.originId] = addMonitoredEndpoint(it.origin)
-                        changed = true
-                    }
-                    is OriginRemoved -> {
-                        removeMonitoredEndpoint(it.originId)
-                        changed = true
-                    }
+                    is NewOriginAdded -> monitoredOrigins[it.originId] = addMonitoredEndpoint(it.origin)
+                    is OriginRemoved -> removeMonitoredEndpoint(it.originId)
                     is OriginUnchanged -> {
                         log.info("Existing origin has been left unchanged. Origin=$appId:${it.origin}")
                         monitoredOrigins[it.originId] = origins[it.originId]!!
                     }
-                    is OriginUpdated -> {
-                        monitoredOrigins[it.originId] = changeMonitoredEndpoint(it.newOrigin)
-                        changed = true
-                    }
+                    is OriginUpdated -> monitoredOrigins[it.originId] = changeMonitoredEndpoint(it.newOrigin)
                 }
+                changed = changed || it.change
             }
 
         origins = monitoredOrigins
@@ -392,8 +384,8 @@ object Active : OriginState(1)
 object Inactive : OriginState(0)
 object Disabled : OriginState(-1)
 
-sealed class OriginChange(val originId: Id)
-data class NewOriginAdded(val origin: Origin) : OriginChange(origin.id())
-data class OriginUpdated(val newOrigin: Origin) : OriginChange(newOrigin.id())
-data class OriginUnchanged(val origin: Origin) : OriginChange(origin.id())
-data class OriginRemoved(val oldOrigin: Origin) : OriginChange(oldOrigin.id())
+sealed class OriginChange(val originId: Id, val change: Boolean)
+data class NewOriginAdded(val origin: Origin) : OriginChange(origin.id(), true)
+data class OriginUpdated(val newOrigin: Origin) : OriginChange(newOrigin.id(), true)
+data class OriginUnchanged(val origin: Origin) : OriginChange(origin.id(), false)
+data class OriginRemoved(val oldOrigin: Origin) : OriginChange(oldOrigin.id(), true)
