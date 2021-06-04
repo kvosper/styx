@@ -1,8 +1,6 @@
 package com.hotels.styx.client
 
 import com.google.common.annotations.VisibleForTesting
-import com.google.common.collect.ImmutableMap
-import com.google.common.collect.ImmutableSet
 import com.google.common.eventbus.EventBus
 import com.hotels.styx.api.Eventual
 import com.hotels.styx.api.HttpHandler
@@ -30,9 +28,6 @@ import io.micrometer.core.instrument.Tags
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.function.Consumer
-import java.util.stream.Collectors.toSet
-import java.util.stream.Stream.concat
 
 
 class OriginsInventoryKotlin(
@@ -68,7 +63,7 @@ class OriginsInventoryKotlin(
     }
 
     @VisibleForTesting
-    fun setOrigins(vararg origins: Origin) = setOrigins(ImmutableSet.copyOf(origins))
+    fun setOrigins(vararg origins: Origin) = setOrigins(setOf(*origins))
 
     fun closed(): Boolean = closed.get()
 
@@ -115,35 +110,41 @@ class OriginsInventoryKotlin(
     }
 
     private fun handleSetOriginsEvent(event: SetOriginsEvent) {
+        val oldAndNewOriginIds = (origins.keys.asSequence() + event.newOrigins.asSequence().map { it.id() })
+            .distinct()
+
         val newOriginsMap: Map<Id, Origin> = event.newOrigins.associateBy { it.id() }
 
-        val originChanges = OriginChanges()
+        val monitoredOrigins = HashMap<Id, MonitoredOrigin>()
+        var changed = false
 
-        val newOrigins = NewOrigins(newOriginsMap)
-
-        concat(origins.keys.stream(), newOriginsMap.keys.stream())
-            .collect(toSet())
+        oldAndNewOriginIds
             .map {
                 originChange(it, newOriginsMap)
             }.forEach {
                 when (it) {
-                    is NewOriginAdded -> originChanges.addOrReplaceOrigin(it.originId, addMonitoredEndpoint(it.origin))
+                    is NewOriginAdded -> {
+                        monitoredOrigins[it.originId] = addMonitoredEndpoint(it.origin)
+                        changed = true
+                    }
                     is OriginRemoved -> {
                         removeMonitoredEndpoint(it.originId)
-                        originChanges.noteRemovedOrigin()
+                        changed = true
                     }
                     is OriginUnchanged -> {
                         log.info("Existing origin has been left unchanged. Origin=$appId:${it.origin}")
-                        originChanges.keepExistingOrigin(it.originId, origins[it.originId]!!)
+                        monitoredOrigins[it.originId] = origins[it.originId]!!
                     }
-                    is OriginUpdated ->
-                        originChanges.addOrReplaceOrigin(it.originId, changeMonitoredEndpoint(it.newOrigin))
+                    is OriginUpdated -> {
+                        monitoredOrigins[it.originId] = changeMonitoredEndpoint(it.newOrigin)
+                        changed = true
+                    }
                 }
             }
 
-        origins = originChanges.updatedOrigins()
+        origins = monitoredOrigins
 
-        if (originChanges.changed()) {
+        if (changed) {
             notifyStateChange()
         }
     }
@@ -166,25 +167,12 @@ class OriginsInventoryKotlin(
         }
     }
 
-    private inner class NewOrigins(val newOriginsMap: Map<Id, Origin>) {
-        fun isNewOrigin(originId: Id) = newOriginsMap.containsKey(originId) && !origins.containsKey(originId)
-        fun isUpdatedOrigin(originId: Id) = newOriginsMap.containsKey(originId) && origins.containsKey(originId)
-                && origins[originId]!!.origin != newOriginsMap[originId]
-
-        fun isUnchangedOrigin(originId: Id) = newOriginsMap.containsKey(originId) && origins.containsKey(originId)
-                && origins[originId]!!.origin == newOriginsMap[originId]
-
-        fun isRemovedOrigin(originId: Id) = !newOriginsMap.containsKey(originId) && origins.containsKey(originId)
-    }
-
     private fun handleCloseEvent() {
         if (closed.compareAndSet(false, true)) {
-            origins.values.forEach(Consumer { host: MonitoredOrigin ->
-                removeMonitoredEndpoint(
-                    host.origin.id()
-                )
-            })
-            origins = ImmutableMap.of()
+            origins.values.forEach {
+                removeMonitoredEndpoint(it.origin.id())
+            }
+            origins = mapOf()
             notifyStateChange()
             eventBus.unregister(this)
         }
@@ -209,43 +197,36 @@ class OriginsInventoryKotlin(
     }
 
     private fun addMonitoredEndpoint(origin: Origin): MonitoredOrigin {
-        val monitoredOrigin = MonitoredOrigin(origin)
-        monitoredOrigin.startMonitoring()
-        log.info("New origin added and activated. Origin={}:{}", appId, monitoredOrigin.origin.id())
-        return monitoredOrigin
+        return MonitoredOrigin(origin).apply {
+            startMonitoring()
+            log.info("New origin added and activated. Origin={}:{}", appId, this.origin.id())
+        }
     }
 
     private fun changeMonitoredEndpoint(origin: Origin): MonitoredOrigin {
-        val oldHost: MonitoredOrigin? = origins[origin.id()]
-        oldHost!!.close()
-        val newHost = MonitoredOrigin(origin)
-        newHost.startMonitoring()
-        log.info("Existing origin has been updated. Origin={}:{}", appId, newHost.origin)
-        return newHost
+        disconnectOrigin(origin.id())
+
+        return MonitoredOrigin(origin).apply {
+            startMonitoring()
+            log.info("Existing origin has been updated. Origin={}:{}", appId, this.origin)
+        }
     }
 
     private fun removeMonitoredEndpoint(originId: Id) {
-        val host: MonitoredOrigin? = origins[originId]
-        host!!.close()
+        val host = disconnectOrigin(originId)
         log.info("Existing origin has been removed. Origin={}:{}", appId, host.origin.id())
     }
 
-    private fun onEvent(origin: Origin, event: Any) {
-        onEvent(origin.id(), event)
-    }
+    private fun disconnectOrigin(originId: Id) = origins[originId]!!.apply { close() }
+
+    private fun onEvent(origin: Origin, event: Any) = onEvent(origin.id(), event)
 
     private fun onEvent(originId: Id, event: Any) {
-        val monitoredOrigin: MonitoredOrigin? = origins[originId]
-        monitoredOrigin?.onEvent(event)
+        origins[originId]?.onEvent(event)
     }
 
     private fun notifyStateChange() {
-        val event = OriginsSnapshot(
-            appId,
-            pools(Active),
-            pools(Inactive),
-            pools(Disabled)
-        )
+        val event = OriginsSnapshot(appId, pools(Active), pools(Inactive), pools(Disabled))
         inventoryListeners.announce().originsChanged(event)
         eventBus.post(event)
     }
@@ -327,32 +308,6 @@ class OriginsInventoryKotlin(
         }
     }
 
-    private class OriginChanges {
-        var monitoredOrigins: ImmutableMap.Builder<Id, MonitoredOrigin> = ImmutableMap.builder()
-        var changed = AtomicBoolean(false)
-
-        fun addOrReplaceOrigin(originId: Id, origin: MonitoredOrigin) {
-            monitoredOrigins.put(originId, origin)
-            changed.set(true)
-        }
-
-        fun keepExistingOrigin(originId: Id, origin: MonitoredOrigin) {
-            monitoredOrigins.put(originId, origin)
-        }
-
-        fun noteRemovedOrigin() {
-            changed.set(true)
-        }
-
-        fun changed(): Boolean {
-            return changed.get()
-        }
-
-        fun updatedOrigins(): Map<Id, MonitoredOrigin> {
-            return monitoredOrigins.build()
-        }
-    }
-
     fun newOriginsInventoryBuilder(appId: Id) = Builder(appId)
 
     fun newOriginsInventoryBuilder(metricRegistry: MeterRegistry, backendService: BackendService) =
@@ -393,7 +348,7 @@ class OriginsInventoryKotlin(
         }
 
         fun initialOrigins(origins: Set<Origin>): Builder = apply {
-            initialOrigins = ImmutableSet.copyOf(origins)
+            initialOrigins = HashSet(origins)
         }
 
         fun build(): OriginsInventory {
@@ -437,20 +392,8 @@ object Active : OriginState(1)
 object Inactive : OriginState(0)
 object Disabled : OriginState(-1)
 
-/*
- fun isNewOrigin(originId : Id) = newOriginsMap.containsKey(originId) && !origins.containsKey(originId)
-        fun isUpdatedOrigin(originId : Id) = newOriginsMap.containsKey(originId) && origins.containsKey(originId)
-                && origins[originId]!!.origin != newOriginsMap[originId]
-        fun isUnchangedOrigin(originId: Id) = newOriginsMap.containsKey(originId) && origins.containsKey(originId)
-                && origins[originId]!!.origin == newOriginsMap[originId]
-        fun isRemovedOrigin(originId : Id) = !newOriginsMap.containsKey(originId) && origins.containsKey(originId)
-* */
-
 sealed class OriginChange(val originId: Id)
 data class NewOriginAdded(val origin: Origin) : OriginChange(origin.id())
 data class OriginUpdated(val newOrigin: Origin) : OriginChange(newOrigin.id())
 data class OriginUnchanged(val origin: Origin) : OriginChange(origin.id())
 data class OriginRemoved(val oldOrigin: Origin) : OriginChange(oldOrigin.id())
-
-
-//
