@@ -15,6 +15,7 @@
  */
 package com.hotels.styx.server.netty.handlers;
 
+import com.hotels.styx.metrics.CentralisedMetrics;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -48,7 +49,7 @@ public class ChannelStatisticsHandler extends ChannelDuplexHandler {
     public static final String REGISTERED_CHANNEL_COUNT = "connection.registeredChannelCount";
     public static final String CHANNELS_SUMMARY = "connection.channels";
 
-
+    private final CentralisedMetrics centralisedMetrics = null;
     private final MeterRegistry meterRegistry;
     private final String prefix;
 

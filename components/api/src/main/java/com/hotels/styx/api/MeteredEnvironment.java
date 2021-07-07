@@ -15,6 +15,7 @@
  */
 package com.hotels.styx.api;
 
+import com.hotels.styx.api.metrics.CentralisedMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 
 public interface MeteredEnvironment {
@@ -33,4 +34,6 @@ public interface MeteredEnvironment {
      * @return meter registry
      */
     MeterRegistry meterRegistry();
+
+    CentralisedMetrics centralisedMetrics();
 }

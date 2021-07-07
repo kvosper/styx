@@ -39,6 +39,7 @@ import com.hotels.styx.common.FsmEventProcessor;
 import com.hotels.styx.common.QueueDrainingEventProcessor;
 import com.hotels.styx.common.StateMachine;
 import com.hotels.styx.common.content.ConsumerDisconnectedException;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import com.hotels.styx.server.BadRequestException;
 import com.hotels.styx.server.HttpErrorStatusListener;
 import com.hotels.styx.server.HttpInterceptorContext;
@@ -76,7 +77,6 @@ import static com.hotels.styx.api.HttpResponseStatus.REQUEST_TIMEOUT;
 import static com.hotels.styx.api.HttpResponseStatus.SERVICE_UNAVAILABLE;
 import static com.hotels.styx.api.HttpVersion.HTTP_1_1;
 import static com.hotels.styx.api.LiveHttpResponse.response;
-import static com.hotels.styx.api.Metrics.name;
 import static com.hotels.styx.server.HttpErrorStatusListener.IGNORE_ERROR_STATUS;
 import static com.hotels.styx.server.RequestProgressListener.IGNORE_REQUEST_PROGRESS;
 import static com.hotels.styx.server.netty.connectors.HttpPipelineHandler.State.ACCEPTING_REQUESTS;
@@ -119,7 +119,9 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
     private final HttpResponseWriterFactory responseWriterFactory;
 
     private final RequestProgressListener statsSink;
-    private final MeterRegistry meterRegistry;
+//    private final MeterRegistry meterRegistry;
+    private final CentralisedMetrics centralisedMetrics;
+    // todo instead of meterPrefix, we may want to introduce a tag for when pipelines can vary.
     private final String meterPrefix;
 
     private final StateMachine<State> stateMachine;
@@ -144,11 +146,12 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
         this.responseWriterFactory = requireNonNull(builder.responseWriterFactory);
         this.statsSink = requireNonNull(builder.progressListener);
         this.stateMachine = createStateMachine();
-        this.meterRegistry = builder.meterRegistrySupplier.get();
+//        this.meterRegistry = builder.meterRegistrySupplier.get();
         this.meterPrefix = builder.meterPrefix;
         this.secure = builder.secure;
         this.tracker = tracker;
         this.originsHeaderName = builder.originsHeaderName;
+        this.centralisedMetrics = null;
     }
 
     private StateMachine<State> createStateMachine() {
@@ -238,7 +241,8 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
     private State onSpuriousRequest(LiveHttpRequest request, State state) {
         LOGGER.warn(warningMessage("message='Spurious request received while handling another request', spuriousRequest=" + request));
 
-        meterRegistry.counter(name(meterPrefix, "request.cancelled.spuriousRequest")).increment();
+        centralisedMetrics.getRequestsCancelled().increment("cause", "spuriousRequest");
+
         statsSink.onTerminate(ongoingRequest.id());
         tracker.endTrack(ongoingRequest);
         cancelSubscription();
@@ -249,7 +253,8 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
         if (prematureRequest != null) {
             LOGGER.warn(warningMessage("message='Spurious request received while handling another request', spuriousRequest=%s" + request));
 
-            meterRegistry.counter(name(meterPrefix, "request.cancelled.spuriousRequest")).increment();
+            centralisedMetrics.getRequestsCancelled().increment("cause", "spuriousRequest");
+
             cancelSubscription();
             statsSink.onTerminate(ongoingRequest.id());
             tracker.endTrack(ongoingRequest);
@@ -357,7 +362,8 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
     }
 
     private State onResponseWriteError(ChannelHandlerContext ctx, Throwable cause) {
-        meterRegistry.counter(name(meterPrefix, "request.cancelled.responseWriteError")).increment();
+        centralisedMetrics.getRequestsCancelled().increment("cause", "responseWriteError");
+
         cancelSubscription();
         statsSink.onTerminate(ongoingRequest.id());
         tracker.endTrack(ongoingRequest);
@@ -369,7 +375,8 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
     }
 
     private State onChannelInactive() {
-        meterRegistry.counter(name(meterPrefix, "request.cancelled.channelInactive")).increment();
+        centralisedMetrics.getRequestsCancelled().increment("cause", "channelInactive");
+
         if (future != null) {
             LOGGER.warn(warningMessage("message=onChannelInactive"));
             future.cancel(false);
@@ -381,7 +388,8 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
     }
 
     private State onChannelExceptionWhenSendingResponse(ChannelHandlerContext ctx, Throwable cause) {
-        meterRegistry.counter(name(meterPrefix, "request.cancelled.channelExceptionWhileSendingResponse")).increment();
+        centralisedMetrics.getRequestsCancelled().increment("cause", "channelExceptionWhileSendingResponse");
+
         cancelSubscription();
         statsSink.onTerminate(ongoingRequest.id());
         tracker.endTrack(ongoingRequest);
@@ -392,7 +400,8 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
     }
 
     private State onChannelExceptionWhenWaitingForResponse(ChannelHandlerContext ctx, Throwable cause) {
-        meterRegistry.counter(name(meterPrefix, "request.cancelled.channelExceptionWhileWaitingForResponse")).increment();
+        centralisedMetrics.getRequestsCancelled().increment("cause", "channelExceptionWhileWaitingForResponse");
+
         statsSink.onTerminate(ongoingRequest.id());
         tracker.endTrack(ongoingRequest);
         cancelSubscription();
@@ -458,7 +467,8 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
             return this.state();
         }
 
-        meterRegistry.counter(name(meterPrefix, "request.cancelled.responseError")).increment();
+        centralisedMetrics.getRequestsCancelled().increment("cause", "responseError");
+
         cancelSubscription();
 
         LOGGER.error(warningMessage(format("message='Error proxying request', requestId=%s cause=%s", requestId, cause)));
@@ -495,7 +505,7 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
     }
 
     private State onResponseObservableCompletedTooSoon(ChannelHandlerContext ctx, Object requestId) {
-        meterRegistry.counter(name(meterPrefix, "request.cancelled.observableCompletedTooSoon")).increment();
+        centralisedMetrics.getRequestsCancelled().increment("cause", "observableCompletedTooSoon");
 
         if (!ongoingRequest.id().equals(requestId)) {
             return this.state();
