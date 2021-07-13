@@ -53,8 +53,16 @@ class CentralisedMetrics(val registry: MeterRegistry) {
         registry.counter("proxy.response", tags).increment()
     }
 
+    fun countRequestReceived() {
+        registry.counter("proxy.request.received").increment()
+    }
+
     fun requestLatencyTimer(): Timer {
         return MeterFactory.timer(registry, Metrics.name("proxy.request.latency"))
+    }
+
+    fun startTiming(): Timer.Sample {
+        return Timer.start(registry);
     }
 
     fun registerOutstandingRequestsGauge(ongoingRequests: ConcurrentMap<Any, Timer.Sample>) {

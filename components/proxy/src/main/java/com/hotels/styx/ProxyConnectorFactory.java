@@ -17,6 +17,7 @@ package com.hotels.styx;
 
 import com.hotels.styx.api.HttpHandler;
 import com.hotels.styx.common.format.HttpMessageFormatter;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import com.hotels.styx.proxy.HttpCompressor;
 import com.hotels.styx.proxy.ServerProtocolDistributionRecorder;
 import com.hotels.styx.proxy.encoders.ConfigurableUnwiseCharsEncoder;
@@ -75,6 +76,7 @@ public class ProxyConnectorFactory implements ServerConnectorFactory {
     private final boolean requestTracking;
     private final HttpMessageFormatter httpMessageFormatter;
     private final CharSequence originsHeader;
+    private final CentralisedMetrics metrics;
 
     // CHECKSTYLE:OFF
     public ProxyConnectorFactory(NettyServerConfig serverConfig,
@@ -93,6 +95,8 @@ public class ProxyConnectorFactory implements ServerConnectorFactory {
         this.requestTracking = requestTracking;
         this.httpMessageFormatter = httpMessageFormatter;
         this.originsHeader = originsHeader;
+        // todo this will move out later
+        this.metrics = new CentralisedMetrics(meterRegistry);
     }
     // CHECKSTYLE:ON
 
@@ -123,7 +127,7 @@ public class ProxyConnectorFactory implements ServerConnectorFactory {
             this.meterRegistry = requireNonNull(factory.meterRegistry);
             this.httpErrorStatusListener = requireNonNull(factory.errorStatusListener);
             this.channelStatsHandler = new ChannelStatisticsHandler(meterRegistry, METER_PREFIX);
-            this.requestStatsCollector = new RequestStatsCollector(meterRegistry, METER_PREFIX);
+            this.requestStatsCollector = new RequestStatsCollector(factory.metrics);
             this.excessConnectionRejector = new ExcessConnectionRejector(new DefaultChannelGroup(GlobalEventExecutor.INSTANCE), serverConfig.maxConnectionsCount());
             this.unwiseCharEncoder = new ConfigurableUnwiseCharsEncoder(factory.unwiseCharacters);
             if (isHttps()) {
