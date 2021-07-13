@@ -44,6 +44,7 @@ public class OriginMetrics implements OriginStats {
 
     public static final String SUCCESS_COUNTER_NAME = "request.success";
     public static final String FAILURE_COUNTER_NAME = "request.error";
+    //styx.response_status_total
     public static final String STATUS_COUNTER_NAME = "response.status";
     public static final String CANCELLATION_COUNTER_NAME = "request.cancellation";
     public static final String LATENCY_TIMER_NAME = "request.latency";

@@ -36,6 +36,8 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Collects statistics about channels.
+ *
+ * TODO if we don't use metrics from here on datadog, we should remove it from the pipeline.
  */
 @ChannelHandler.Sharable
 public class ChannelStatisticsHandler extends ChannelDuplexHandler {
@@ -64,6 +66,8 @@ public class ChannelStatisticsHandler extends ChannelDuplexHandler {
         this.receivedBytesCount = this.meterRegistry.counter(name(meterPrefix, BYTES_RECEIVED));
         this.sentBytesCount = this.meterRegistry.counter(name(meterPrefix, BYTES_SENT));
         this.totalConnections = this.meterRegistry.gauge(name(meterPrefix, TOTAL_CONNECTIONS), new AtomicLong());
+
+
     }
 
     @Override

@@ -30,15 +30,18 @@ import static java.lang.String.valueOf;
 /**
  * An implementation of request event sink that maintains Styx request statistics.
  */
+// Only used in ProxyConnectorFactory.ProxyConnector
 public class RequestStatsCollector implements RequestProgressListener {
 
     public static final String STATUS_TAG = "statusCode";
     public static final String STATUS_CLASS_TAG = "statusClass";
 
+    //proxy_request_outstanding
     public static final String REQUEST_OUTSTANDING = "request.outstanding";
     public static final String REQUEST_LATENCY = "request.latency";
     public static final String REQUEST_RECEIVED = "request.received";
     public static final String RESPONSE_SENT = "response.sent";
+    // styx.proxy_response_status_total
     public static final String RESPONSE_STATUS = "response.status";
 
     public static final String STATUS_CLASS_UNRECOGNISED = "unrecognised";
