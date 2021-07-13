@@ -28,10 +28,9 @@ import static java.util.Objects.requireNonNull;
  */
 // Only used in ProxyConnectorFactory.ProxyConnector
 public class RequestStatsCollector implements RequestProgressListener {
-
+    private final CentralisedMetrics metrics;
     private final Timer latencyTimer;
     private final ConcurrentHashMap<Object, Timer.Sample> ongoingRequests = new ConcurrentHashMap<>();
-    private final CentralisedMetrics metrics;
 
     /**
      * Constructs a collector with a {@link MeterRegistry} to report stastistics to.

@@ -71,6 +71,10 @@ class CentralisedMetrics(val registry: MeterRegistry) {
         }
     }
 
+    fun countRequestCancellation(cause : String) {
+        registry.counter("proxy.request.cancelled", "cause", cause).increment()
+    }
+
     val responseStatus: StyxMetric = RealMetric("response_status")
 
 
