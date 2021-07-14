@@ -119,9 +119,7 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
     private final HttpResponseWriterFactory responseWriterFactory;
 
     private final RequestProgressListener statsSink;
-    private final MeterRegistry meterRegistry;
     private final CentralisedMetrics metrics;
-    private final String meterPrefix;
 
     private final StateMachine<State> stateMachine;
     private final ResponseEnhancer responseEnhancer;
@@ -145,8 +143,7 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
         this.responseWriterFactory = requireNonNull(builder.responseWriterFactory);
         this.statsSink = requireNonNull(builder.progressListener);
         this.stateMachine = createStateMachine();
-        this.meterRegistry = builder.meterRegistrySupplier.get();
-        this.meterPrefix = builder.meterPrefix;
+        MeterRegistry meterRegistry = builder.meterRegistrySupplier.get();
         this.secure = builder.secure;
         this.tracker = tracker;
         this.originsHeaderName = builder.originsHeaderName;
@@ -673,7 +670,6 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
         private RequestProgressListener progressListener = IGNORE_REQUEST_PROGRESS;
         private HttpResponseWriterFactory responseWriterFactory = HttpResponseWriter::new;
         private Supplier<MeterRegistry> meterRegistrySupplier = CompositeMeterRegistry::new;
-        private String meterPrefix;
         private RequestTracker tracker = RequestTracker.NO_OP;
         private boolean secure;
         private CharSequence originsHeaderName;
@@ -743,8 +739,8 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
             return this;
         }
 
+        // todo delete
         public Builder meterPrefix(String meterPrefix) {
-            this.meterPrefix = meterPrefix;
             return this;
         }
 

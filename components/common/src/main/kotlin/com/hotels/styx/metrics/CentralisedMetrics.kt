@@ -21,9 +21,7 @@ import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Tags
 import io.micrometer.core.instrument.Timer
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
-import java.util.function.ToDoubleFunction
 
 class CentralisedMetrics(val registry: MeterRegistry) {
     val STATUS_TAG = "statusCode"
@@ -57,13 +55,9 @@ class CentralisedMetrics(val registry: MeterRegistry) {
         registry.counter("proxy.request.received").increment()
     }
 
-    fun requestLatencyTimer(): Timer {
-        return MeterFactory.timer(registry, Metrics.name("proxy.request.latency"))
-    }
+    fun requestLatencyTimer(): Timer = MeterFactory.timer(registry, Metrics.name("proxy.request.latency"))
 
-    fun startTiming(): Timer.Sample {
-        return Timer.start(registry);
-    }
+    fun startTiming(): Timer.Sample = Timer.start(registry)
 
     fun registerOutstandingRequestsGauge(ongoingRequests: ConcurrentMap<Any, Timer.Sample>) {
         registry.gauge("proxy.request.outstanding", ongoingRequests) {
@@ -71,12 +65,50 @@ class CentralisedMetrics(val registry: MeterRegistry) {
         }
     }
 
+    fun registerBusyConnectionsGauge(tags: Tags, supplier : () -> Int): Gauge =
+        Gauge.builder("connectionpool.busyConnections", supplier).tags(tags).register(registry)
+
+    fun registerPendingConnectionsGauge(tags: Tags, supplier : () -> Int): Gauge =
+        Gauge.builder("connectionpool.pendingConnections", supplier).tags(tags).register(registry)
+
+    fun registerAvailableConnectionsGauge(tags: Tags, supplier : () -> Int): Gauge =
+        Gauge.builder("connectionpool.availableConnections", supplier).tags(tags).register(registry)
+
+    fun registerConnectionAttemptsGauge(tags: Tags, supplier : () -> Int): Gauge =
+        Gauge.builder("connectionpool.connectionAttempts", supplier).tags(tags).register(registry)
+
+    fun registerConnectionFailuresGauge(tags: Tags, supplier : () -> Int): Gauge =
+        Gauge.builder("connectionpool.connectionFailures", supplier).tags(tags).register(registry)
+
+    fun registerConnectionsClosedGauge(tags: Tags, supplier : () -> Int): Gauge =
+        Gauge.builder("connectionpool.connectionsClosed", supplier).tags(tags).register(registry)
+
+    fun registerConnectionsTerminatedGauge(tags: Tags, supplier : () -> Int): Gauge =
+        Gauge.builder("connectionpool.connectionsTerminated", supplier).tags(tags).register(registry)
+
+    fun registerConnectionsInEstablishmentGauge(tags: Tags, supplier : () -> Int): Gauge =
+        Gauge.builder("connectionpool.connectionsInEstablishment", supplier).tags(tags).register(registry)
+
+    /*
+        Supplier<Number> supplier
+
+        meters.add(Gauge.builder(name(PREFIX, name), supplier).tags(tags).register(meterRegistry));
+
+        registerGauge("busyConnections", stats::busyConnectionCount);
+        registerGauge("pendingConnections", stats::pendingConnectionCount);
+        registerGauge("availableConnections", stats::availableConnectionCount);
+        registerGauge("connectionAttempts", stats::connectionAttempts);
+        registerGauge("connectionFailures", stats::connectionFailures);
+        registerGauge("connectionsClosed", stats::closedConnections);
+        registerGauge("connectionsTerminated", stats::terminatedConnections);
+        registerGauge("connectionsInEstablishment", stats::connectionsInEstablishment);
+    * */
+
     fun countRequestCancellation(cause : String) {
         registry.counter("proxy.request.cancelled", "cause", cause).increment()
     }
 
     val responseStatus: StyxMetric = RealMetric("response_status")
-
 
     inner class RealMetric(private val name: String) : StyxMetric {
         override fun incrementCounter(statusTags: Tags) {
@@ -87,9 +119,7 @@ class CentralisedMetrics(val registry: MeterRegistry) {
 
 
 interface StyxMetric {
-    //registry.counter(name(prefix, RESPONSE_STATUS), statusTags).increment();
     fun incrementCounter(statusTags: Tags)
-
 }
 
 /* DELETE WHEN DONE
