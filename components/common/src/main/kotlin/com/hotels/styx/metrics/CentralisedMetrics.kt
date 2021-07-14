@@ -24,15 +24,6 @@ import io.micrometer.core.instrument.Timer
 import java.util.concurrent.ConcurrentMap
 
 class CentralisedMetrics(val registry: MeterRegistry) {
-    val STATUS_TAG = "statusCode"
-    val STATUS_CLASS_TAG = "statusClass"
-    val STATUS_CLASS_UNRECOGNISED = "unrecognised"
-
-    /*
-    * TODO if we want to be able to tag some of these, perhaps the classes should not contain a single metric until done, but rather
-    *  just a name that can have tags attached or something??
-    * */
-
     /* How about:
          * a metric for responses. includes status, and anything else etc.
             * cannot combine latency because it is a different metric type - timer instead of counter
@@ -41,11 +32,11 @@ class CentralisedMetrics(val registry: MeterRegistry) {
 
     fun countResponse(code: Int) {
         val tags: Tags = if (code in 100..599) {
-            Tags.of(STATUS_CLASS_TAG, (code / 100).toString() + "xx")
-                .and(STATUS_TAG, code.toString())
+            Tags.of("statusClass", (code / 100).toString() + "xx")
+                .and("statusCode", code.toString())
         } else {
-            Tags.of(STATUS_CLASS_TAG, STATUS_CLASS_UNRECOGNISED)
-                .and(STATUS_TAG, STATUS_CLASS_UNRECOGNISED)
+            Tags.of("statusClass", "unrecognised")
+                .and("statusCode", "unrecognised")
         }
 
         registry.counter("proxy.response", tags).increment()
@@ -88,21 +79,6 @@ class CentralisedMetrics(val registry: MeterRegistry) {
 
     fun registerConnectionsInEstablishmentGauge(tags: Tags, supplier : () -> Int): Gauge =
         Gauge.builder("connectionpool.connectionsInEstablishment", supplier).tags(tags).register(registry)
-
-    /*
-        Supplier<Number> supplier
-
-        meters.add(Gauge.builder(name(PREFIX, name), supplier).tags(tags).register(meterRegistry));
-
-        registerGauge("busyConnections", stats::busyConnectionCount);
-        registerGauge("pendingConnections", stats::pendingConnectionCount);
-        registerGauge("availableConnections", stats::availableConnectionCount);
-        registerGauge("connectionAttempts", stats::connectionAttempts);
-        registerGauge("connectionFailures", stats::connectionFailures);
-        registerGauge("connectionsClosed", stats::closedConnections);
-        registerGauge("connectionsTerminated", stats::terminatedConnections);
-        registerGauge("connectionsInEstablishment", stats::connectionsInEstablishment);
-    * */
 
     fun countRequestCancellation(cause : String) {
         registry.counter("proxy.request.cancelled", "cause", cause).increment()
