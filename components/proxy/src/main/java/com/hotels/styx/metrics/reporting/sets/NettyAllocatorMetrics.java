@@ -37,6 +37,7 @@ public class NettyAllocatorMetrics implements MeterBinder {
         this(namespace, metric, emptyList());
     }
 
+    // only called above
     public NettyAllocatorMetrics(String namespace, ByteBufAllocatorMetric metric, Iterable<Tag> tags) {
         this.namespace = requireNonNull(namespace);
         this.metric = requireNonNull(metric);

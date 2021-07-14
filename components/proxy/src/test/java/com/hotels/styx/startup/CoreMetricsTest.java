@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -48,18 +49,25 @@ public class CoreMetricsTest {
         MeterRegistry registry = new SimpleMeterRegistry();
         CoreMetrics.registerCoreMetrics(version, registry);
 
-        List<String> gauges = registry.getMeters()
-                .stream()
-                .map(meter -> meter.getId().getName())
-                .collect(Collectors.toList());
+        assertThat(registry.find("netty.allocator.memory")
+                        .tags("allocator", "pooled", "memoryType", "direct")
+                        .gauges(),
+                hasSize(1));
 
-        assertThat(gauges, hasItems(
-                "jvm.uptime",
-                "jvm.netty.pooledAllocator.usedDirectMemory",
-                "jvm.netty.pooledAllocator.usedHeapMemory",
-                "jvm.netty.unpooledAllocator.usedDirectMemory",
-                "jvm.netty.unpooledAllocator.usedHeapMemory"
-        ));
+        assertThat(registry.find("netty.allocator.memory")
+                        .tags("allocator", "pooled", "memoryType", "heap")
+                        .gauges(),
+                hasSize(1));
+
+        assertThat(registry.find("netty.allocator.memory")
+                        .tags("allocator", "unpooled", "memoryType", "direct")
+                        .gauges(),
+                hasSize(1));
+
+        assertThat(registry.find("netty.allocator.memory")
+                        .tags("allocator", "unpooled", "memoryType", "heap")
+                        .gauges(),
+                hasSize(1));
     }
 
     @Test

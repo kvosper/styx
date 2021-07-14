@@ -17,10 +17,7 @@ package com.hotels.styx.metrics
 
 import com.hotels.styx.api.Metrics
 import com.hotels.styx.api.metrics.MeterFactory
-import io.micrometer.core.instrument.Gauge
-import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.Tags
-import io.micrometer.core.instrument.Timer
+import io.micrometer.core.instrument.*
 import java.util.concurrent.ConcurrentMap
 
 class CentralisedMetrics(val registry: MeterRegistry) {
@@ -56,32 +53,48 @@ class CentralisedMetrics(val registry: MeterRegistry) {
         }
     }
 
-    fun registerBusyConnectionsGauge(tags: Tags, supplier : () -> Int): Gauge =
+    fun registerBusyConnectionsGauge(tags: Tags, supplier: () -> Int): Gauge =
         Gauge.builder("connectionpool.busyConnections", supplier).tags(tags).register(registry)
 
-    fun registerPendingConnectionsGauge(tags: Tags, supplier : () -> Int): Gauge =
+    fun registerPendingConnectionsGauge(tags: Tags, supplier: () -> Int): Gauge =
         Gauge.builder("connectionpool.pendingConnections", supplier).tags(tags).register(registry)
 
-    fun registerAvailableConnectionsGauge(tags: Tags, supplier : () -> Int): Gauge =
+    fun registerAvailableConnectionsGauge(tags: Tags, supplier: () -> Int): Gauge =
         Gauge.builder("connectionpool.availableConnections", supplier).tags(tags).register(registry)
 
-    fun registerConnectionAttemptsGauge(tags: Tags, supplier : () -> Int): Gauge =
+    fun registerConnectionAttemptsGauge(tags: Tags, supplier: () -> Int): Gauge =
         Gauge.builder("connectionpool.connectionAttempts", supplier).tags(tags).register(registry)
 
-    fun registerConnectionFailuresGauge(tags: Tags, supplier : () -> Int): Gauge =
+    fun registerConnectionFailuresGauge(tags: Tags, supplier: () -> Int): Gauge =
         Gauge.builder("connectionpool.connectionFailures", supplier).tags(tags).register(registry)
 
-    fun registerConnectionsClosedGauge(tags: Tags, supplier : () -> Int): Gauge =
+    fun registerConnectionsClosedGauge(tags: Tags, supplier: () -> Int): Gauge =
         Gauge.builder("connectionpool.connectionsClosed", supplier).tags(tags).register(registry)
 
-    fun registerConnectionsTerminatedGauge(tags: Tags, supplier : () -> Int): Gauge =
+    fun registerConnectionsTerminatedGauge(tags: Tags, supplier: () -> Int): Gauge =
         Gauge.builder("connectionpool.connectionsTerminated", supplier).tags(tags).register(registry)
 
-    fun registerConnectionsInEstablishmentGauge(tags: Tags, supplier : () -> Int): Gauge =
+    fun registerConnectionsInEstablishmentGauge(tags: Tags, supplier: () -> Int): Gauge =
         Gauge.builder("connectionpool.connectionsInEstablishment", supplier).tags(tags).register(registry)
 
-    fun countRequestCancellation(cause : String) {
+    fun countRequestCancellation(cause: String) {
         registry.counter("proxy.request.cancelled", "cause", cause).increment()
+    }
+
+    fun <T> registerNettyAllocatorMemoryGauge(
+        allocator: String,
+        memoryType: String,
+        stateObject: T,
+        supplier: (T) -> Long
+    ) {
+        val tags = listOf(
+            Tag.of("allocator", allocator),
+            Tag.of("memoryType", memoryType)
+        )
+
+        Gauge.builder("netty.allocator.memory", stateObject) { supplier(stateObject).toDouble() }
+            .tags(tags)
+            .register(registry);
     }
 
     val responseStatus: StyxMetric = RealMetric("response_status")

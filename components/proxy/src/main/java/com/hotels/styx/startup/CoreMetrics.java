@@ -16,24 +16,18 @@
 package com.hotels.styx.startup;
 
 import com.hotels.styx.Version;
-import com.hotels.styx.metrics.reporting.sets.NettyAllocatorMetrics;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import com.hotels.styx.metrics.reporting.sets.OperatingSystemMetrics;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
-import io.micrometer.core.instrument.binder.jvm.ClassLoaderMetrics;
-import io.micrometer.core.instrument.binder.jvm.JvmGcMetrics;
-import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
-import io.micrometer.core.instrument.binder.jvm.JvmThreadMetrics;
+import io.netty.buffer.ByteBufAllocatorMetric;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import org.slf4j.Logger;
 
-import java.lang.management.RuntimeMXBean;
 import java.util.Optional;
 
-import static com.hotels.styx.api.Metrics.name;
-import static java.lang.management.ManagementFactory.getRuntimeMXBean;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -68,22 +62,15 @@ public final class CoreMetrics {
     }
 
     private static void registerJvmMetrics(MeterRegistry registry) {
-        new JvmMemoryMetrics().bindTo(registry);
-        new JvmThreadMetrics().bindTo(registry);
-        new JvmGcMetrics().bindTo(registry);
-        new ClassLoaderMetrics().bindTo(registry);
+        // todo needs to be a single object held somewhere
+        CentralisedMetrics metrics = new CentralisedMetrics(registry);
 
-        RuntimeMXBean runtimeMxBean = getRuntimeMXBean();
-        registry.gauge(name(JVM_METRICS_ROOT, "uptime"), Tags.empty(), runtimeMxBean, RuntimeMXBean::getUptime);
+        ByteBufAllocatorMetric pooled = PooledByteBufAllocator.DEFAULT.metric();
+        ByteBufAllocatorMetric unpooled = UnpooledByteBufAllocator.DEFAULT.metric();
 
-        new NettyAllocatorMetrics(
-                name(JVM_METRICS_ROOT, "netty", "pooledAllocator"),
-                PooledByteBufAllocator.DEFAULT.metric()
-        ).bindTo(registry);
-
-        new NettyAllocatorMetrics(
-                name(JVM_METRICS_ROOT, "netty", "unpooledAllocator"),
-                UnpooledByteBufAllocator.DEFAULT.metric()
-        ).bindTo(registry);
+        metrics.registerNettyAllocatorMemoryGauge("pooled", "direct", pooled, ByteBufAllocatorMetric::usedDirectMemory);
+        metrics.registerNettyAllocatorMemoryGauge("pooled", "heap", pooled, ByteBufAllocatorMetric::usedHeapMemory);
+        metrics.registerNettyAllocatorMemoryGauge("unpooled", "direct", unpooled, ByteBufAllocatorMetric::usedDirectMemory);
+        metrics.registerNettyAllocatorMemoryGauge("unpooled", "heap", unpooled, ByteBufAllocatorMetric::usedHeapMemory);
     }
 }

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2013-2019 Expedia Inc.
+  Copyright (C) 2013-2021 Expedia Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -52,16 +52,6 @@ class AdminInterfaceSpec : FeatureSpec() {
                 styxServer.adminRequest("/admin", debug = true)
                         .bodyAs(UTF_8)
                         .shouldContain("<a href='/admin/uptime'>uptime</a>".toRegex())
-            }
-        }
-
-        feature("Styx Server Admin Interface Endpoints") {
-            styxServer.restart()
-
-            scenario("Uptime endpoint") {
-                styxServer.adminRequest("/admin/uptime")
-                        .bodyAs(UTF_8)
-                        .shouldMatch("\"[0-9]{1,2}d [0-9]{1,2}h [0-9]{1,2}m\"".toRegex())
             }
         }
     }
