@@ -97,13 +97,25 @@ class CentralisedMetrics(val registry: MeterRegistry) {
             .register(registry);
     }
 
-    val responseStatus: StyxMetric = RealMetric("response_status")
-
-    inner class RealMetric(private val name: String) : StyxMetric {
-        override fun incrementCounter(statusTags: Tags) {
-            registry.counter(name, statusTags).increment()
-        }
+    fun countBackendFault(applicationId: String, type: String) {
+        countBackendFault(applicationId, null, type)
     }
+
+    fun countBackendFault(applicationId: String, originId: String?, faultType: String) {
+        val originTag = originId?.let { Tags.of("origin", originId) } ?: Tags.empty()
+
+        val tags = Tags.of("application", applicationId).and("faultType", faultType).and(originTag)
+
+        registry.counter("backend.fault", tags).increment()
+    }
+
+    //val responseStatus: StyxMetric = RealMetric("response_status")
+//
+//    inner class RealMetric(private val name: String) : StyxMetric {
+//        override fun incrementCounter(statusTags: Tags) {
+//            registry.counter(name, statusTags).increment()
+//        }
+//    }
 }
 
 

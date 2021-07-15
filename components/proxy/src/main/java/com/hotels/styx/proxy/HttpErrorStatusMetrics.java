@@ -19,6 +19,7 @@ import com.hotels.styx.api.HttpResponseStatus;
 import com.hotels.styx.api.LiveHttpRequest;
 import com.hotels.styx.api.LiveHttpResponse;
 import com.hotels.styx.api.plugins.spi.PluginException;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import com.hotels.styx.server.HttpErrorStatusListener;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -27,6 +28,7 @@ import java.net.InetSocketAddress;
 
 import static com.hotels.styx.api.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static com.hotels.styx.api.Metrics.formattedExceptionName;
+import static com.hotels.styx.proxy.plugin.ExceptionMetricsKt.countBackendFault;
 import static java.lang.String.valueOf;
 import static java.util.Objects.requireNonNull;
 
@@ -44,6 +46,7 @@ public class HttpErrorStatusMetrics implements HttpErrorStatusListener {
 
     private final MeterRegistry meterRegistry;
     private final Counter styxErrors;
+    private final CentralisedMetrics centralisedMetrics;
 
     /**
      * Construct a reporter with a given registry to report to.
@@ -56,6 +59,8 @@ public class HttpErrorStatusMetrics implements HttpErrorStatusListener {
         // This means we can find the expected metric names in the registry, even before the corresponding events have occurred
         preregisterMetrics();
         styxErrors = meterRegistry.counter(ERROR);
+        // todo inject dependency
+        this.centralisedMetrics = new CentralisedMetrics(meterRegistry);
     }
 
     @Override
@@ -93,10 +98,17 @@ public class HttpErrorStatusMetrics implements HttpErrorStatusListener {
 
     private void incrementExceptionCounter(Throwable cause, HttpResponseStatus status) {
         if (!(cause instanceof PluginException)) {
+            boolean isInternal = INTERNAL_SERVER_ERROR.equals(status)
+                    || (status.code() > 500 && !countBackendFault(centralisedMetrics, cause))
+                    || status.code() < 400; //getting an exception without returning an error status is unusual so we want to record this.
+
+            if (isInternal) {
+                exceptionCounter(cause.getClass()).increment();
+            }
+
             if (INTERNAL_SERVER_ERROR.equals(status)) {
                 styxErrors.increment();
             }
-            exceptionCounter(cause.getClass()).increment();
         }
     }
 

@@ -34,7 +34,6 @@ import static org.slf4j.LoggerFactory.getLogger;
  * Core metrics - JVM details, Styx version.
  */
 public final class CoreMetrics {
-    private static final String JVM_METRICS_ROOT = "jvm";
     private static final Logger LOG = getLogger(CoreMetrics.class);
 
     private CoreMetrics() {

@@ -32,6 +32,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * A netty channel handler that collects statistics on outbound requests.
  */
+// todo i feel like we don't want any of these any more. except maybe just latency?
 class RequestsToOriginMetricsCollector extends ChannelDuplexHandler {
     public static final String NAME = "outbound-request-stats-handler";
 
