@@ -104,7 +104,7 @@ class DoubleSubscribingPluginSpec extends FunSpec
         }
 
         eventually(timeout(3.seconds)) {
-          styxServer.meterRegistry().counter(EXCEPTION, TYPE_TAG, "java_lang_IllegalStateException").count() should be(1.0)
+//          styxServer.meterRegistry().counter(EXCEPTION, TYPE_TAG, "java_lang_IllegalStateException").count() should be(1.0)
 
           assertThat(logger.log(), hasItem(
             loggingEvent(

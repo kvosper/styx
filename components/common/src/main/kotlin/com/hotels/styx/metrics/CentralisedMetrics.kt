@@ -15,10 +15,8 @@
  */
 package com.hotels.styx.metrics
 
-import com.hotels.styx.api.Metrics
 import com.hotels.styx.api.metrics.MeterFactory
 import io.micrometer.core.instrument.*
-import java.util.concurrent.ConcurrentMap
 
 class CentralisedMetrics(val registry: MeterRegistry) {
     /* How about:
@@ -26,6 +24,30 @@ class CentralisedMetrics(val registry: MeterRegistry) {
             * cannot combine latency because it is a different metric type - timer instead of counter
          * separate metrics for origin behaviours, designed not to get confused
      */
+
+
+    val requestLatency: StyxTimer = CmTimer("proxy.request.latency")
+
+    val outstandingRequests: StyxGauge = CmGauge("proxy.request.outstanding")
+
+    val busyConnections: StyxGauge = CmGauge("connectionpool.busyConnections")
+    val pendingConnections: StyxGauge = CmGauge("connectionpool.pendingConnections")
+    val availableConnections: StyxGauge = CmGauge("connectionpool.availableConnections")
+    val connectionAttempts: StyxGauge = CmGauge("connectionpool.connectionAttempts")
+    val connectionFailures: StyxGauge = CmGauge("connectionpool.connectionFailures")
+    val connectionsClosed: StyxGauge = CmGauge("connectionpool.connectionsClosed")
+    val connectionsTerminated: StyxGauge = CmGauge("connectionpool.connectionsTerminated")
+    val connectionsInEstablishment: StyxGauge = CmGauge("connectionpool.connectionsInEstablishment")
+
+    // We can preregister this easily because there are no tags used
+    val styxErrors: StyxCounter = CmCounter("styx.error").preregister()
+
+    private val responses: StyxCounter = CmCounter("proxy.response")
+    private val requestsReceived: StyxCounter = CmCounter("proxy.request.received")
+
+    private val requestCancellation: StyxCounter = CmCounter("proxy.request.cancelled")
+
+    private val backendFaults: StyxCounter = CmCounter("backend.fault")
 
     fun countResponse(code: Int) {
         val tags: Tags = if (code in 100..599) {
@@ -36,50 +58,12 @@ class CentralisedMetrics(val registry: MeterRegistry) {
                 .and("statusCode", "unrecognised")
         }
 
-        registry.counter("proxy.response", tags).increment()
+        responses.increment(tags)
     }
 
-    fun countRequestReceived() {
-        registry.counter("proxy.request.received").increment()
-    }
+    fun countRequestReceived() = requestsReceived.increment()
 
-    fun requestLatencyTimer(): Timer = MeterFactory.timer(registry, Metrics.name("proxy.request.latency"))
-
-    fun startTiming(): Timer.Sample = Timer.start(registry)
-
-    fun registerOutstandingRequestsGauge(ongoingRequests: ConcurrentMap<Any, Timer.Sample>) {
-        registry.gauge("proxy.request.outstanding", ongoingRequests) {
-            it.size.toDouble()
-        }
-    }
-
-    fun registerBusyConnectionsGauge(tags: Tags, supplier: () -> Int): Gauge =
-        Gauge.builder("connectionpool.busyConnections", supplier).tags(tags).register(registry)
-
-    fun registerPendingConnectionsGauge(tags: Tags, supplier: () -> Int): Gauge =
-        Gauge.builder("connectionpool.pendingConnections", supplier).tags(tags).register(registry)
-
-    fun registerAvailableConnectionsGauge(tags: Tags, supplier: () -> Int): Gauge =
-        Gauge.builder("connectionpool.availableConnections", supplier).tags(tags).register(registry)
-
-    fun registerConnectionAttemptsGauge(tags: Tags, supplier: () -> Int): Gauge =
-        Gauge.builder("connectionpool.connectionAttempts", supplier).tags(tags).register(registry)
-
-    fun registerConnectionFailuresGauge(tags: Tags, supplier: () -> Int): Gauge =
-        Gauge.builder("connectionpool.connectionFailures", supplier).tags(tags).register(registry)
-
-    fun registerConnectionsClosedGauge(tags: Tags, supplier: () -> Int): Gauge =
-        Gauge.builder("connectionpool.connectionsClosed", supplier).tags(tags).register(registry)
-
-    fun registerConnectionsTerminatedGauge(tags: Tags, supplier: () -> Int): Gauge =
-        Gauge.builder("connectionpool.connectionsTerminated", supplier).tags(tags).register(registry)
-
-    fun registerConnectionsInEstablishmentGauge(tags: Tags, supplier: () -> Int): Gauge =
-        Gauge.builder("connectionpool.connectionsInEstablishment", supplier).tags(tags).register(registry)
-
-    fun countRequestCancellation(cause: String) {
-        registry.counter("proxy.request.cancelled", "cause", cause).increment()
-    }
+    fun countRequestCancellation(cause: String) = requestCancellation.increment(Tags.of("cause", cause))
 
     fun <T> registerNettyAllocatorMemoryGauge(
         allocator: String,
@@ -97,31 +81,87 @@ class CentralisedMetrics(val registry: MeterRegistry) {
             .register(registry);
     }
 
-    fun countBackendFault(applicationId: String, type: String) {
-        countBackendFault(applicationId, null, type)
-    }
+    fun countBackendFault(applicationId: String, type: String) = countBackendFault(applicationId, null, type)
 
     fun countBackendFault(applicationId: String, originId: String?, faultType: String) {
         val originTag = originId?.let { Tags.of("origin", originId) } ?: Tags.empty()
 
         val tags = Tags.of("application", applicationId).and("faultType", faultType).and(originTag)
 
-        registry.counter("backend.fault", tags).increment()
+        backendFaults.increment(tags)
     }
 
-    //val responseStatus: StyxMetric = RealMetric("response_status")
-//
-//    inner class RealMetric(private val name: String) : StyxMetric {
-//        override fun incrementCounter(statusTags: Tags) {
-//            registry.counter(name, statusTags).increment()
-//        }
-//    }
+    inner class CmGauge(val name: String) : StyxGauge {
+        override fun register(tags: Tags, supplier: () -> Int) =
+            CmDeleter(Gauge.builder(name, supplier).tags(tags).register(registry))
+
+        override fun register(supplier: () -> Int) =
+            CmDeleter(Gauge.builder(name, supplier).register(registry))
+
+        override fun <T> register(stateObject: T, function: (T) -> Number) {
+            registry.gauge(name, stateObject) {
+                function(it).toDouble()
+            }
+        }
+
+        inner class CmDeleter(val gauge: Gauge) : StyxGauge.Deleter {
+            override fun delete() {
+                registry.remove(gauge)
+            }
+        }
+    }
+
+    inner class CmCounter(val name: String) : StyxCounter {
+        override fun increment(statusTags: Tags) = registry.counter(name, statusTags).increment()
+
+        override fun increment() = registry.counter(name).increment()
+
+        override fun preregister(statusTags: Tags) = apply { registry.counter(name, statusTags) }
+
+        override fun preregister() = apply { registry.counter(name) }
+    }
+
+    inner class CmTimer(val name: String) : StyxTimer {
+        private val timer = MeterFactory.timer(registry, name)
+
+        override fun startTiming() = CmStopper(Timer.start(registry))
+
+        inner class CmStopper(private val startTime: Timer.Sample) : StyxTimer.Stopper {
+            override fun stop() {
+                startTime.stop(timer)
+            }
+        }
+    }
 }
 
+interface StyxCounter {
+    fun increment(statusTags: Tags)
+    fun increment()
 
-interface StyxMetric {
-    fun incrementCounter(statusTags: Tags)
+    // Prometheus requires that all meters with the same name have the same set of tag keys.
+    fun preregister(statusTags: Tags): StyxCounter
+    fun preregister(): StyxCounter
 }
+
+interface StyxGauge {
+    fun register(tags: Tags, supplier: () -> Int): Deleter
+    fun register(supplier: () -> Int): Deleter
+
+    fun <T> register(stateObject: T, function: (T) -> Number)
+
+    interface Deleter {
+        fun delete()
+    }
+}
+
+interface StyxTimer {
+    fun startTiming(): Stopper
+
+    interface Stopper {
+        fun stop()
+    }
+}
+
 
 /* DELETE WHEN DONE
 *

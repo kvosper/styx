@@ -19,7 +19,7 @@ import com.hotels.styx.api.extension.Origin;
 import com.hotels.styx.api.extension.service.ConnectionPoolSettings;
 import com.hotels.styx.client.Connection;
 import com.hotels.styx.metrics.CentralisedMetrics;
-import io.micrometer.core.instrument.Meter;
+import com.hotels.styx.metrics.StyxGauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.reactivestreams.Publisher;
@@ -34,14 +34,12 @@ import static java.util.Objects.requireNonNull;
 
 class StatsReportingConnectionPool implements ConnectionPool {
     private final ConnectionPool connectionPool;
-    private final MeterRegistry meterRegistry;
-    private final Set<Meter> meters = new HashSet<>();
+    private final Set<StyxGauge.Deleter> deleters = new HashSet<>();
     private final Tags tags;
     private final CentralisedMetrics metrics;
 
     public StatsReportingConnectionPool(ConnectionPool connectionPool, MeterRegistry meterRegistry) {
         this.connectionPool = requireNonNull(connectionPool);
-        this.meterRegistry = requireNonNull(meterRegistry);
         this.metrics = new CentralisedMetrics(meterRegistry);
         this.tags = Tags.of(APPID_TAG, connectionPool.getOrigin().applicationId().toString(),
                 ORIGINID_TAG, connectionPool.getOrigin().id().toString());
@@ -92,20 +90,20 @@ class StatsReportingConnectionPool implements ConnectionPool {
     private void registerMetrics() {
         ConnectionPool.Stats stats = connectionPool.stats();
 
-        meters.addAll(asList(
-                metrics.registerBusyConnectionsGauge(tags, stats::busyConnectionCount),
-                metrics.registerPendingConnectionsGauge(tags, stats::pendingConnectionCount),
-                metrics.registerAvailableConnectionsGauge(tags, stats::availableConnectionCount),
-                metrics.registerConnectionAttemptsGauge(tags, stats::connectionAttempts),
-                metrics.registerConnectionFailuresGauge(tags, stats::connectionFailures),
-                metrics.registerConnectionsClosedGauge(tags, stats::closedConnections),
-                metrics.registerConnectionsTerminatedGauge(tags, stats::terminatedConnections),
-                metrics.registerConnectionsInEstablishmentGauge(tags, stats::connectionsInEstablishment)
+        deleters.addAll(asList(
+                metrics.getBusyConnections().register(tags, stats::busyConnectionCount),
+                metrics.getPendingConnections().register(tags, stats::pendingConnectionCount),
+                metrics.getAvailableConnections().register(tags, stats::availableConnectionCount),
+                metrics.getConnectionAttempts().register(tags, stats::connectionAttempts),
+                metrics.getConnectionFailures().register(tags, stats::connectionFailures),
+                metrics.getConnectionsClosed().register(tags, stats::closedConnections),
+                metrics.getConnectionsTerminated().register(tags, stats::terminatedConnections),
+                metrics.getConnectionsInEstablishment().register(tags, stats::connectionsInEstablishment)
         ));
     }
 
     private void removeMetrics() {
-        meters.forEach(meterRegistry::remove);
-        meters.clear();
+        deleters.forEach(StyxGauge.Deleter::delete);
+        deleters.clear();
     }
 }

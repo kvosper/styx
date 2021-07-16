@@ -16,8 +16,8 @@
 package com.hotels.styx.server;
 
 import com.hotels.styx.metrics.CentralisedMetrics;
+import com.hotels.styx.metrics.StyxTimer;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,11 +26,10 @@ import static java.util.Objects.requireNonNull;
 /**
  * An implementation of request event sink that maintains Styx request statistics.
  */
-// Only used in ProxyConnectorFactory.ProxyConnector
 public class RequestStatsCollector implements RequestProgressListener {
     private final CentralisedMetrics metrics;
-    private final Timer latencyTimer;
-    private final ConcurrentHashMap<Object, Timer.Sample> ongoingRequests = new ConcurrentHashMap<>();
+    private final StyxTimer latencyTimer;
+    private final ConcurrentHashMap<Object, StyxTimer.Stopper> ongoingRequests = new ConcurrentHashMap<>();
 
     /**
      * Constructs a collector with a {@link MeterRegistry} to report stastistics to.
@@ -39,13 +38,14 @@ public class RequestStatsCollector implements RequestProgressListener {
      */
     public RequestStatsCollector(CentralisedMetrics metrics) {
         this.metrics = requireNonNull(metrics);
-        metrics.registerOutstandingRequestsGauge(ongoingRequests);
-        this.latencyTimer = metrics.requestLatencyTimer();
+        metrics.getOutstandingRequests().register(ongoingRequests, ConcurrentHashMap::size);
+
+        this.latencyTimer = metrics.getRequestLatency();
     }
 
     @Override
     public void onRequest(Object requestId) {
-        Timer.Sample previous = this.ongoingRequests.putIfAbsent(requestId, metrics.startTiming());
+        StyxTimer.Stopper previous = this.ongoingRequests.putIfAbsent(requestId, latencyTimer.startTiming());
         if (previous == null) {
             metrics.countRequestReceived();
         }
@@ -53,19 +53,19 @@ public class RequestStatsCollector implements RequestProgressListener {
 
     @Override
     public void onComplete(Object requestId, int responseStatus) {
-        Timer.Sample startTime = this.ongoingRequests.remove(requestId);
+        StyxTimer.Stopper startTime = this.ongoingRequests.remove(requestId);
         if (startTime != null) {
             metrics.countResponse(responseStatus);
 
-            startTime.stop(latencyTimer);
+            startTime.stop();
         }
     }
 
     @Override
     public void onTerminate(Object requestId) {
-        Timer.Sample startTime = this.ongoingRequests.remove(requestId);
+        StyxTimer.Stopper startTime = this.ongoingRequests.remove(requestId);
         if (startTime != null) {
-            startTime.stop(latencyTimer);
+            startTime.stop();
         }
     }
 }

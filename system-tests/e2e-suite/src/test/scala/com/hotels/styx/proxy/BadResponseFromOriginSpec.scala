@@ -108,7 +108,12 @@ class BadResponseFromOriginSpec extends FunSpec
       response.header(CONNECTION) should be(Optional.of("close"))
 
       eventually(timeout(7.seconds)) {
-        styxServer.meterRegistry().counter(RESPONSE, STATUS_CODE_TAG, "502").count() should be(1.0)
+        styxServer.meterRegistry().counter("backend.fault",
+          "faultType", "badHttpResponse",
+          "application", "app-1",
+          "origin", "NettyOrigin"
+        ).count() should be(1.0)
+//        styxServer.meterRegistry().counter(RESPONSE, STATUS_CODE_TAG, "502").count() should be(1.0)
       }
     }
 
