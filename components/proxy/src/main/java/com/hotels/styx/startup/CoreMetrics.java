@@ -39,9 +39,9 @@ public final class CoreMetrics {
     private CoreMetrics() {
     }
 
-    public static void registerCoreMetrics(Version buildInfo, MeterRegistry registry) {
+    public static void registerCoreMetrics(Version buildInfo, MeterRegistry registry, CentralisedMetrics metrics) {
         registerVersionMetric(buildInfo, registry);
-        registerJvmMetrics(registry);
+        registerJvmMetrics(metrics);
         new OperatingSystemMetrics().bindTo(registry);
     }
 
@@ -60,10 +60,7 @@ public final class CoreMetrics {
         versionMeter.increment();
     }
 
-    private static void registerJvmMetrics(MeterRegistry registry) {
-        // todo needs to be a single object held somewhere
-        CentralisedMetrics metrics = new CentralisedMetrics(registry);
-
+    private static void registerJvmMetrics(CentralisedMetrics metrics) {
         ByteBufAllocatorMetric pooled = PooledByteBufAllocator.DEFAULT.metric();
         ByteBufAllocatorMetric unpooled = UnpooledByteBufAllocator.DEFAULT.metric();
 

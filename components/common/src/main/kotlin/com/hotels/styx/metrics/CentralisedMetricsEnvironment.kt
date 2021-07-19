@@ -17,6 +17,9 @@ package com.hotels.styx.metrics
 
 import com.hotels.styx.api.Environment
 
+/**
+ * An Environment with Styx-specific CentralisedMetrics.
+ */
 interface CentralisedMetricsEnvironment : Environment {
     fun centralisedMetrics() : CentralisedMetrics
 }

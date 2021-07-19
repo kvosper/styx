@@ -1001,8 +1001,7 @@ public class HttpPipelineHandlerTest {
                 .errorStatusListener(errorListener)
                 .responseEnhancer(responseEnhancer)
                 .progressListener(statsCollector)
-                .meterRegistry(metrics)
-                .meterPrefix("test");
+                .metrics(new CentralisedMetrics(metrics));
     }
 
     private static HttpResponseWriterFactory responseWriterFactory(CompletableFuture<Void> future) {

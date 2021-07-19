@@ -129,6 +129,7 @@ internal class StyxHttpServerFactory : StyxServerFactory {
                                         .setMaxConnectionsCount(config.maxConnectionsCount)
                                         .build(),
                                 environment.meterRegistry(),
+                                environment.centralisedMetrics(),
                                 environment.errorListener(),
                                 environment.configuration().get(ENCODE_UNWISECHARS).orElse(""),
                                 ResponseEnhancer { builder, request ->

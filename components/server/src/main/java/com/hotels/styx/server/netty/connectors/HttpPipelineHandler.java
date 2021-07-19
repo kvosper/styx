@@ -47,7 +47,6 @@ import com.hotels.styx.server.NoServiceConfiguredException;
 import com.hotels.styx.server.RequestProgressListener;
 import com.hotels.styx.server.RequestTimeoutException;
 import com.hotels.styx.server.track.RequestTracker;
-import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -143,11 +142,10 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
         this.responseWriterFactory = requireNonNull(builder.responseWriterFactory);
         this.statsSink = requireNonNull(builder.progressListener);
         this.stateMachine = createStateMachine();
-        MeterRegistry meterRegistry = builder.meterRegistrySupplier.get();
         this.secure = builder.secure;
         this.tracker = tracker;
         this.originsHeaderName = builder.originsHeaderName;
-        this.metrics = new CentralisedMetrics(meterRegistry);
+        this.metrics = builder.metricsSupplier.get();
     }
 
     private StateMachine<State> createStateMachine() {
@@ -669,7 +667,7 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
         private HttpErrorStatusListener httpErrorStatusListener = IGNORE_ERROR_STATUS;
         private RequestProgressListener progressListener = IGNORE_REQUEST_PROGRESS;
         private HttpResponseWriterFactory responseWriterFactory = HttpResponseWriter::new;
-        private Supplier<MeterRegistry> meterRegistrySupplier = CompositeMeterRegistry::new;
+        private Supplier<CentralisedMetrics> metricsSupplier = () -> new CentralisedMetrics(new CompositeMeterRegistry());
         private RequestTracker tracker = RequestTracker.NO_OP;
         private boolean secure;
         private CharSequence originsHeaderName;
@@ -730,17 +728,17 @@ public class HttpPipelineHandler extends SimpleChannelInboundHandler<LiveHttpReq
         /**
          * Sets the meter registry. By default, the metrics will not be available.
          *
-         * @param meterRegistry the meter registry
+         * @param metrics the meter registry
          * @return this builder
          */
-        public Builder meterRegistry(MeterRegistry meterRegistry) {
-            requireNonNull(meterRegistry);
-            this.meterRegistrySupplier = () -> meterRegistry;
+        public Builder metrics(CentralisedMetrics metrics) {
+            requireNonNull(metrics);
+            this.metricsSupplier = () -> metrics;
             return this;
         }
 
-        // todo delete
-        public Builder meterPrefix(String meterPrefix) {
+        public Builder metricsSupplier(Supplier<CentralisedMetrics> metricsSupplier) {
+            this.metricsSupplier = metricsSupplier;
             return this;
         }
 

@@ -81,6 +81,7 @@ public class ProxyConnectorFactory implements ServerConnectorFactory {
     // CHECKSTYLE:OFF
     public ProxyConnectorFactory(NettyServerConfig serverConfig,
                                  MeterRegistry meterRegistry,
+                                 CentralisedMetrics centralisedMetrics,
                                  HttpErrorStatusListener errorStatusListener,
                                  String unwiseCharacters,
                                  ResponseEnhancer responseEnhancer,
@@ -96,7 +97,7 @@ public class ProxyConnectorFactory implements ServerConnectorFactory {
         this.httpMessageFormatter = httpMessageFormatter;
         this.originsHeader = originsHeader;
         // todo this will move out later
-        this.metrics = new CentralisedMetrics(meterRegistry);
+        this.metrics = requireNonNull(centralisedMetrics);
     }
     // CHECKSTYLE:ON
 
@@ -109,6 +110,7 @@ public class ProxyConnectorFactory implements ServerConnectorFactory {
         private final ConnectorConfig config;
         private final NettyServerConfig serverConfig;
         private final MeterRegistry meterRegistry;
+        private final CentralisedMetrics metrics;
         private final HttpErrorStatusListener httpErrorStatusListener;
         private final ChannelStatisticsHandler channelStatsHandler;
         private final ExcessConnectionRejector excessConnectionRejector;
@@ -125,6 +127,7 @@ public class ProxyConnectorFactory implements ServerConnectorFactory {
             this.responseEnhancer = requireNonNull(factory.responseEnhancer);
             this.serverConfig = requireNonNull(factory.serverConfig);
             this.meterRegistry = requireNonNull(factory.meterRegistry);
+            this.metrics = requireNonNull(factory.metrics);
             this.httpErrorStatusListener = requireNonNull(factory.errorStatusListener);
             this.channelStatsHandler = new ChannelStatisticsHandler(meterRegistry, METER_PREFIX);
             this.requestStatsCollector = new RequestStatsCollector(factory.metrics);
@@ -171,8 +174,7 @@ public class ProxyConnectorFactory implements ServerConnectorFactory {
                             .responseEnhancer(responseEnhancer)
                             .errorStatusListener(httpErrorStatusListener)
                             .progressListener(requestStatsCollector)
-                            .meterRegistry(meterRegistry)
-                            .meterPrefix(METER_PREFIX)
+                            .metrics(metrics)
                             .secure(sslContext.isPresent())
                             .requestTracker(requestTracker)
                             .xOriginsHeader(originsHeader)

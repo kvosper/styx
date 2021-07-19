@@ -181,7 +181,7 @@ public final class StyxServer extends AbstractService {
             throw new IllegalStateException("The base meter registry should be a micrometer composite registry!");
         }
 
-        registerCoreMetrics(components.environment().buildInfo(), components.environment().meterRegistry());
+        registerCoreMetrics(components.environment().buildInfo(), components.environment().meterRegistry(), components.environment().centralisedMetrics());
 
         // The plugins are loaded, but not initialised. And therefore not able to accept traffic.
         // This handler is for the "old" proxy servers, that are started from proxy.connectors configuration.
@@ -265,6 +265,7 @@ public final class StyxServer extends AbstractService {
         ServerConnector proxyConnector = new ProxyConnectorFactory(
                 environment.configuration().proxyServerConfig(),
                 environment.meterRegistry(),
+                environment.centralisedMetrics(),
                 environment.errorListener(),
                 environment.configuration().get(ENCODE_UNWISECHARS).orElse(""),
                 (builder, request) -> builder.header(styxInfoHeaderName, responseInfoFormat.format(request)),

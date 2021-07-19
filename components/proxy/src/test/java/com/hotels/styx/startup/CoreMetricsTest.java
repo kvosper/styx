@@ -16,6 +16,7 @@
 package com.hotels.styx.startup;
 
 import com.hotels.styx.Version;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -36,7 +37,7 @@ public class CoreMetricsTest {
     @Test
     public void registersVersionMetric() {
         MeterRegistry registry = new SimpleMeterRegistry();
-        CoreMetrics.registerCoreMetrics(version, registry);
+        CoreMetrics.registerCoreMetrics(version, registry, new CentralisedMetrics(registry));
 
         Counter counter = registry.find("styx.version").counter();
 
@@ -47,7 +48,7 @@ public class CoreMetricsTest {
     @Test
     public void registersJvmMetrics() {
         MeterRegistry registry = new SimpleMeterRegistry();
-        CoreMetrics.registerCoreMetrics(version, registry);
+        CoreMetrics.registerCoreMetrics(version, registry, new CentralisedMetrics(registry));
 
         assertThat(registry.find("netty.allocator.memory")
                         .tags("allocator", "pooled", "memoryType", "direct")
@@ -73,7 +74,7 @@ public class CoreMetricsTest {
     @Test
     public void registersOperatingSystemMetrics() {
         MeterRegistry registry = new SimpleMeterRegistry();
-        CoreMetrics.registerCoreMetrics(version, registry);
+        CoreMetrics.registerCoreMetrics(version, registry, new CentralisedMetrics(registry));
 
         List<String> gauges = registry.getMeters()
                 .stream()
