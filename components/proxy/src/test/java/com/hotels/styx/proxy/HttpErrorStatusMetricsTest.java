@@ -26,6 +26,7 @@ import com.hotels.styx.api.plugins.spi.PluginException;
 import com.hotels.styx.client.BadHttpResponseException;
 import com.hotels.styx.client.connectionpool.MaxPendingConnectionTimeoutException;
 import com.hotels.styx.client.connectionpool.MaxPendingConnectionsExceededException;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import com.hotels.styx.server.HttpErrorStatusListener;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -60,11 +61,13 @@ import static org.hamcrest.Matchers.notNullValue;
 public class HttpErrorStatusMetricsTest {
     private MeterRegistry registry;
     private HttpErrorStatusListener errorListener;
+    private CentralisedMetrics metrics;
 
     @BeforeEach
     public void setUp() {
         registry = new SimpleMeterRegistry();
-        errorListener = new HttpErrorStatusMetrics(registry);
+        metrics = new CentralisedMetrics(registry);
+        errorListener = new HttpErrorStatusMetrics(metrics);
     }
 
     @Test
@@ -109,7 +112,7 @@ public class HttpErrorStatusMetricsTest {
     @Test
     public void nonErrorStatusesIsNotRecordedForProxyEvenIfExceptionIsSupplied() {
         MeterRegistry registry = new SimpleMeterRegistry();
-        HttpErrorStatusMetrics reporter = new HttpErrorStatusMetrics(registry);
+        HttpErrorStatusMetrics reporter = new HttpErrorStatusMetrics(metrics);
         reporter.proxyErrorOccurred(OK, new RuntimeException("This shouldn't happen"));
 
         assertThat(count(ERROR), is(0));

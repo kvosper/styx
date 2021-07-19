@@ -53,6 +53,8 @@ public class InstrumentedPlugin implements NamedPlugin {
         this.plugin = requireNonNull(plugin);
         requireNonNull(environment);
 
+        // todo we want plenty of metrics from plugins so that we know where they are coming from if we get, e.g. a lot of error status codes
+
         this.errorStatusMetrics = new SimpleCache<>(statusCode ->
                 Counter.builder("plugin.response")
                         .tag("plugin", plugin.name())

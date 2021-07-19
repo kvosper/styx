@@ -27,6 +27,7 @@ import java.net.InetSocketAddress;
 
 import static com.hotels.styx.api.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static com.hotels.styx.proxy.plugin.ExceptionMetricsKt.countBackendFault;
+import static java.util.Objects.requireNonNull;
 
 /**
  * An error listener that reports error metrics to a {@link MeterRegistry}.
@@ -40,16 +41,15 @@ public class HttpErrorStatusMetrics implements HttpErrorStatusListener {
     public static final String STATUS_CODE_TAG = "statusCode";
     public static final String TYPE_TAG = "type";
 
-    private final CentralisedMetrics centralisedMetrics;
+    private final CentralisedMetrics metrics;
 
     /**
      * Construct a reporter with a given registry to report to.
      *
-     * @param meterRegistry registry to report to
+     * @param metrics registry to report to
      */
-    public HttpErrorStatusMetrics(MeterRegistry meterRegistry) {
-        // todo inject dependency
-        this.centralisedMetrics = new CentralisedMetrics(meterRegistry);
+    public HttpErrorStatusMetrics(CentralisedMetrics metrics) {
+        this.metrics = requireNonNull(metrics);
     }
 
     @Override
@@ -86,9 +86,9 @@ public class HttpErrorStatusMetrics implements HttpErrorStatusListener {
     private void incrementExceptionCounter(Throwable cause, HttpResponseStatus status) {
         if (!(cause instanceof PluginException)) {
             if (INTERNAL_SERVER_ERROR.equals(status)) {
-                centralisedMetrics.getStyxErrors().increment();
+                metrics.getStyxErrors().increment();
             } else if (status != null && status.code() > 500) {
-                countBackendFault(centralisedMetrics, cause);
+                countBackendFault(metrics, cause);
             }
         }
     }

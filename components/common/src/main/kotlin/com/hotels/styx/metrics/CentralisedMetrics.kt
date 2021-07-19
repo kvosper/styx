@@ -25,7 +25,8 @@ class CentralisedMetrics(val registry: MeterRegistry) {
          * separate metrics for origin behaviours, designed not to get confused
      */
 
-
+    // TODO should we use this syntax for the benefit of java code? probably not worth cluttering this class TBH
+    //@get:JvmName("requestLatency")
     val requestLatency: StyxTimer = CmTimer("proxy.request.latency")
 
     val outstandingRequests: StyxGauge = CmGauge("proxy.request.outstanding")
