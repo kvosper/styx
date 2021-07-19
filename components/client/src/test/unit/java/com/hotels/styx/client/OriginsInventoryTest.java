@@ -26,6 +26,7 @@ import com.hotels.styx.client.connectionpool.stubs.StubConnectionFactory;
 import com.hotels.styx.client.healthcheck.OriginHealthStatusMonitor;
 import com.hotels.styx.client.origincommands.DisableOrigin;
 import com.hotels.styx.client.origincommands.EnableOrigin;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import com.hotels.styx.support.matchers.LoggingTestSupport;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -491,7 +492,7 @@ public class OriginsInventoryTest {
         return new SimpleConnectionPoolFactory.Builder()
                 .connectionFactory(new StubConnectionFactory())
                 .connectionPoolSettings(defaultConnectionPoolSettings())
-                .meterRegistry(new SimpleMeterRegistry())
+                .metrics(new CentralisedMetrics(new SimpleMeterRegistry()))
                 .build();
     }
 

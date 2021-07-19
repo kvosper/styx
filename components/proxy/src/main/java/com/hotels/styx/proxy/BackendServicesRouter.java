@@ -127,7 +127,7 @@ public class BackendServicesRouter implements HttpRouter, Registry.ChangeListene
             ConnectionPool.Factory connectionPoolFactory = new SimpleConnectionPoolFactory.Builder()
                     .connectionFactory(connectionFactory)
                     .connectionPoolSettings(backendService.connectionPoolConfig())
-                    .meterRegistry(environment.meterRegistry())
+                    .metrics(environment.centralisedMetrics())
                     .build();
 
             OriginHealthStatusMonitor healthStatusMonitor = healthStatusMonitor(backendService);

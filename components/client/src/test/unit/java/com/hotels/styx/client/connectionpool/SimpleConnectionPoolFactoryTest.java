@@ -17,6 +17,7 @@ package com.hotels.styx.client.connectionpool;
 
 import com.hotels.styx.api.extension.Origin;
 import com.hotels.styx.client.Connection;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -41,7 +42,7 @@ public class SimpleConnectionPoolFactoryTest {
         SimpleConnectionPoolFactory factory = new SimpleConnectionPoolFactory.Builder()
                 .connectionFactory(mock(Connection.Factory.class))
                 .connectionPoolSettings(defaultConnectionPoolSettings())
-                .meterRegistry(meterRegistry)
+                .metrics(new CentralisedMetrics(meterRegistry))
                 .build();
         factory.create(origin);
 

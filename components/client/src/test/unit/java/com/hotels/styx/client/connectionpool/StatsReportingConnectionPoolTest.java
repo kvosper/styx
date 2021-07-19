@@ -17,6 +17,7 @@ package com.hotels.styx.client.connectionpool;
 
 import com.hotels.styx.api.extension.Origin;
 import com.hotels.styx.client.netty.connectionpool.StubConnectionPool;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -37,7 +38,7 @@ public class StatsReportingConnectionPoolTest {
     final MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     final ConnectionPool delegate = new StubConnectionPool(origin);
-    final StatsReportingConnectionPool pool = new StatsReportingConnectionPool(delegate, meterRegistry);
+    final StatsReportingConnectionPool pool = new StatsReportingConnectionPool(delegate, new CentralisedMetrics(meterRegistry));
 
     @Test
     public void removesRegisteredMetricsOnClose() {

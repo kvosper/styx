@@ -15,7 +15,6 @@
  */
 package com.hotels.styx.proxy.plugin;
 
-import com.hotels.styx.api.Environment;
 import com.hotels.styx.api.Eventual;
 import com.hotels.styx.api.HttpHandler;
 import com.hotels.styx.api.HttpResponseStatus;
@@ -24,6 +23,7 @@ import com.hotels.styx.api.LiveHttpResponse;
 import com.hotels.styx.api.plugins.spi.Plugin;
 import com.hotels.styx.api.plugins.spi.PluginException;
 import com.hotels.styx.common.SimpleCache;
+import com.hotels.styx.metrics.CentralisedMetricsEnvironment;
 import io.micrometer.core.instrument.Counter;
 import org.slf4j.Logger;
 import reactor.core.publisher.Flux;
@@ -32,7 +32,6 @@ import java.util.Map;
 
 import static com.hotels.styx.api.HttpResponseStatus.BAD_REQUEST;
 import static com.hotels.styx.api.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static com.hotels.styx.api.Metrics.formattedExceptionName;
 import static java.util.Objects.requireNonNull;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -47,7 +46,7 @@ public class InstrumentedPlugin implements NamedPlugin {
     private final SimpleCache<Class<? extends Throwable>, Counter> exceptionMetrics;
     private final Counter errors;
 
-    public InstrumentedPlugin(NamedPlugin plugin, Environment environment) {
+    public InstrumentedPlugin(NamedPlugin plugin, CentralisedMetricsEnvironment environment) {
         requireNotAlreadyInstrumented(plugin);
 
         this.plugin = requireNonNull(plugin);

@@ -20,7 +20,6 @@ import com.hotels.styx.api.extension.service.ConnectionPoolSettings;
 import com.hotels.styx.client.Connection;
 import com.hotels.styx.metrics.CentralisedMetrics;
 import com.hotels.styx.metrics.StyxGauge;
-import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.reactivestreams.Publisher;
 
@@ -38,9 +37,9 @@ class StatsReportingConnectionPool implements ConnectionPool {
     private final Tags tags;
     private final CentralisedMetrics metrics;
 
-    public StatsReportingConnectionPool(ConnectionPool connectionPool, MeterRegistry meterRegistry) {
+    public StatsReportingConnectionPool(ConnectionPool connectionPool, CentralisedMetrics metrics) {
         this.connectionPool = requireNonNull(connectionPool);
-        this.metrics = new CentralisedMetrics(meterRegistry);
+        this.metrics = metrics;
         this.tags = Tags.of(APPID_TAG, connectionPool.getOrigin().applicationId().toString(),
                 ORIGINID_TAG, connectionPool.getOrigin().id().toString());
         registerMetrics();

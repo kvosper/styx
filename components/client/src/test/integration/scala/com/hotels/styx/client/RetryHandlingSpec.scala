@@ -19,7 +19,6 @@ import java.nio.charset.Charset
 import java.util.concurrent.TimeUnit.SECONDS
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
-
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder
 import com.github.tomakehurst.wiremock.client.WireMock._
 import com.hotels.styx.api.HttpHeaderNames.CONTENT_LENGTH
@@ -36,6 +35,7 @@ import com.hotels.styx.client.loadbalancing.strategies.RoundRobinStrategy
 import com.hotels.styx.client.retry.RetryNTimes
 import com.hotels.styx.client.stickysession.StickySessionLoadBalancingStrategy
 import com.hotels.styx.common.FreePorts.freePort
+import com.hotels.styx.metrics.CentralisedMetrics
 import com.hotels.styx.support.Support.requestContext
 import com.hotels.styx.support.server.FakeHttpServer
 import com.hotels.styx.support.server.UrlMatchingStrategies._
@@ -123,7 +123,7 @@ class RetryHandlingSpec extends FunSuite with BeforeAndAfterAll with Matchers wi
     originServer4.stop()
   }
 
-  private def activeOrigins(backendService: BackendService) = newOriginsInventoryBuilder(meterRegistry, backendService).build()
+  private def activeOrigins(backendService: BackendService) = newOriginsInventoryBuilder(new CentralisedMetrics(meterRegistry), backendService).build()
 
   private def stickySessionStrategy(activeOrigins: ActiveOrigins) = new StickySessionLoadBalancingStrategy(
     activeOrigins,

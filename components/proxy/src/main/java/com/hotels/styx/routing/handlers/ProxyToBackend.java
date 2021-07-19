@@ -123,7 +123,7 @@ public class ProxyToBackend implements RoutingObject {
             ConnectionPool.Factory connectionPoolFactory = new SimpleConnectionPoolFactory.Builder()
                     .connectionFactory(connectionFactory)
                     .connectionPoolSettings(poolSettings)
-                    .meterRegistry(context.environment().meterRegistry())
+                    .metrics(context.environment().centralisedMetrics())
                     .build();
 
             OriginsInventory inventory = new OriginsInventory.Builder(backendService.id())

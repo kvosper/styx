@@ -115,7 +115,7 @@ public class StyxBackendServiceClientFactoryTest {
         BackendServiceClient styxBackendServiceClient = new StyxBackendServiceClientFactory(environment)
                 .createClient(
                         backendService,
-                        newOriginsInventoryBuilder(environment.meterRegistry(), backendService)
+                        newOriginsInventoryBuilder(environment.centralisedMetrics(), backendService)
                                 .hostClientFactory((pool) -> {
                                     if (pool.getOrigin().id().equals(id("x"))) {
                                         return hostClient(response(OK).header("X-Origin-Id", "x").build());
@@ -161,7 +161,7 @@ public class StyxBackendServiceClientFactoryTest {
         BackendServiceClient styxBackendServiceClient = new StyxBackendServiceClientFactory(environment)
                 .createClient(
                         backendService,
-                        newOriginsInventoryBuilder(environment.meterRegistry(), backendService)
+                        newOriginsInventoryBuilder(environment.centralisedMetrics(), backendService)
                                 .hostClientFactory((pool) -> {
                                     if (pool.getOrigin().id().equals(id("x"))) {
                                         return hostClient(response(OK).header("X-Origin-Id", "x").build());

@@ -39,6 +39,7 @@ import com.hotels.styx.client.origincommands.GetOriginsInventorySnapshot;
 import com.hotels.styx.common.EventProcessor;
 import com.hotels.styx.common.QueueDrainingEventProcessor;
 import com.hotels.styx.common.StateMachine;
+import com.hotels.styx.metrics.CentralisedMetrics;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
@@ -501,10 +502,10 @@ public final class OriginsInventory
         return new Builder(appId);
     }
 
-    public static Builder newOriginsInventoryBuilder(MeterRegistry metricRegistry, BackendService backendService) {
+    public static Builder newOriginsInventoryBuilder(CentralisedMetrics metrics, BackendService backendService) {
         return new Builder(backendService.id())
-                .meterRegistry(metricRegistry)
-                .connectionPoolFactory(simplePoolFactory(backendService, metricRegistry))
+                .meterRegistry(metrics.getRegistry())
+                .connectionPoolFactory(simplePoolFactory(backendService, metrics))
                 .initialOrigins(backendService.origins());
     }
 
